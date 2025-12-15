@@ -5,19 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Fox Ops Portal</title>
 
-  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg"/>
+  <link rel="icon" type="image/png" href="assets/img/favicon.png?v=1"/>
   <link rel="stylesheet" href="assets/style.css"/>
 
-  <!-- Markdown renderer -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-  <!-- Mermaid (дерево/схемы) -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 </head>
 <body>
   <header>
     <div class="brand">
-      <img src="assets/img/fox.svg" alt="Fox"/>
+      <img src="assets/img/fox.png?v=1" alt="Fox"/>
       <div class="title">
         <strong>Fox Ops Portal</strong>
         <span>ДИ • регламенты • отчёты • BI</span>
@@ -39,7 +36,7 @@
     <aside class="sidebar" id="sidebar"></aside>
 
     <main class="main">
-      <img class="watermark" src="assets/img/fox.svg" alt="" aria-hidden="true"/>
+      <img class="watermark" src="assets/img/fox.png?v=1" alt="" aria-hidden="true"/>
 
       <div class="pagehead">
         <div>
@@ -51,6 +48,7 @@
 
         <div class="actions">
           <button class="btn" id="btnReload">Обновить</button>
+          <button class="btn" id="btnDownload" style="display:none;">Скачать оригинал</button>
           <button class="btn" id="btnCopyLink">Скопировать ссылку</button>
           <button class="btn" id="btnEdit">Редактировать на GitHub</button>
         </div>
