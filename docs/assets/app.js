@@ -1,15 +1,11 @@
-// =====================
-// Fox Ops Portal config
-// =====================
+// Если снова “вечная загрузка” — открой DevTools → Console.
+// Но этим хотфиксом мы ещё и показываем ошибку прямо на странице.
 
-// если меняешь файлы и браузер показывает старые — просто увеличь версию:
-const BUILD_VERSION = "1";
-
-// Кнопка "Редактировать на GitHub"
+const BUILD_VERSION = "3";
 const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/";
 
-// Навигация
-// ВАЖНО: если хочешь кнопку "Скачать оригинал" для страницы — добавляй поле download: "files/xxx.pdf"
+// 👇 сюда добавляешь "download", чтобы кнопка "Скачать оригинал" работала
+// Файлы кладём в docs/files/ (латиница, без пробелов)
 const NAV = [
   {
     section: "Оргструктура",
@@ -64,25 +60,45 @@ function bust(url){
 }
 
 function escapeHtml(str){
-  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return (str||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function mdFallback(md){
+  // очень простой рендер, чтобы не зависеть от CDN
+  md = md.replace(/```([\s\S]*?)```/g, (m, code)=> `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+  md = md.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+  md = md.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+  md = md.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+  md = md.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2">$1</a>`);
+  md = md.replace(/^\- (.*)$/gm, "<li>$1</li>");
+  md = md.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
+  md = md.split(/\n{2,}/).map(chunk=>{
+    const c = chunk.trim();
+    if (!c) return "";
+    if (/^\s*<(h1|h2|h3|ul|pre)/.test(c)) return c;
+    return `<p>${c.replace(/\n/g,"<br/>")}</p>`;
+  }).join("\n");
+  return md;
 }
 
 async function renderMarkdown(md){
   if (window.marked && typeof window.marked.parse === "function"){
     return window.marked.parse(md, { mangle:false, headerIds:true });
   }
-  // fallback (редко понадобится)
-  return `<pre><code>${escapeHtml(md)}</code></pre>`;
+  return mdFallback(md);
 }
 
 function buildSidebar(filter=""){
+  if (!els.sidebar) return;
   els.sidebar.innerHTML = "";
-  const q = filter.trim().toLowerCase();
+  const q = (filter||"").trim().toLowerCase();
 
   NAV.forEach(group=>{
     const section = document.createElement("div");
     section.className = "section";
     section.innerHTML = `<h3>${group.section}</h3>`;
+
     const nav = document.createElement("div");
     nav.className = "nav";
 
@@ -102,8 +118,8 @@ function buildSidebar(filter=""){
 
 function getItemById(id){
   for (const g of NAV){
-    const found = g.items.find(x=>x.id===id);
-    if (found) return { group: g.section, ...found };
+    const f = g.items.find(x=>x.id===id);
+    if (f) return { group: g.section, ...f };
   }
   return null;
 }
@@ -115,7 +131,7 @@ function setActive(id){
 }
 
 function currentId(){
-  return (window.location.hash || "").replace("#","") || "org-structure";
+  return (window.location.hash||"").replace("#","") || "org-structure";
 }
 
 function navigate(id){
@@ -125,37 +141,85 @@ function navigate(id){
   loadPage(id);
 }
 
-function wireLinks(){
-  els.content.querySelectorAll("a").forEach(a=>{
-    const href = a.getAttribute("href") || "";
-    if (href.startsWith("#")){
-      a.addEventListener("click", (e)=>{
-        e.preventDefault();
-        navigate(href.slice(1));
-      });
-      return;
-    }
-
-    // если ссылка на файл — добавим download и анти-кэш
-    const isFile = /\.(pdf|docx|xlsx|pptx|zip)$/i.test(href) || href.includes("/files/");
-    if (isFile){
-      a.setAttribute("download", "");
-      a.addEventListener("click", (e)=>{
-        // чтобы всегда скачивало свежую версию
-        a.href = bust(a.href);
-      });
-    }
-
-    a.setAttribute("target", "_blank");
-    a.setAttribute("rel", "noopener");
-  });
+function downloadFile(url){
+  const a = document.createElement("a");
+  a.href = bust(url);
+  a.download = ""; // заставляет скачать, а не просто открыть
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
-async function renderMermaid(){
-  if (!window.mermaid) return;
+async function loadPage(id){
+  const item = getItemById(id) || getItemById("org-structure");
+  if (!item) return;
 
-  els.content.querySelectorAll("code.language-mermaid").forEach(code=>{
-    const pre = code.parentElement;
-    const div = document.createElement("div");
-    div.className = "mermaid";
-    div
+  setActive(item.id);
+  if (els.crumb) els.crumb.textContent = item.group;
+  if (els.title) els.title.textContent = item.title;
+
+  // edit
+  if (els.btnEdit){
+    els.btnEdit.onclick = ()=> window.open(REPO_EDIT_BASE + item.path, "_blank", "noopener");
+  }
+
+  // download
+  if (els.btnDownload){
+    if (item.download){
+      els.btnDownload.style.display = "inline-flex";
+      els.btnDownload.onclick = ()=> downloadFile(item.download);
+    } else {
+      els.btnDownload.style.display = "none";
+    }
+  }
+
+  try{
+    const res = await fetch(bust(item.path), { cache:"no-store" });
+    if (!res.ok) throw new Error(`Не могу загрузить ${item.path} (${res.status})`);
+    const md = await res.text();
+    if (els.content) els.content.innerHTML = await renderMarkdown(md);
+    if (els.last) els.last.textContent = new Date().toLocaleString();
+  }catch(err){
+    if (els.content){
+      els.content.innerHTML = `
+        <h1>Ошибка загрузки</h1>
+        <p>${escapeHtml(String(err.message||err))}</p>
+        <p class="badge">Проверь: существует ли файл и совпадает ли регистр пути.</p>
+      `;
+    }
+  }
+}
+
+async function copyLink(){
+  await navigator.clipboard.writeText(window.location.href);
+  const old = els.btnCopyLink.textContent;
+  els.btnCopyLink.textContent = "Скопировано";
+  setTimeout(()=> els.btnCopyLink.textContent = old, 800);
+}
+
+function boot(){
+  // если JS вообще не стартует — ты увидишь вечную загрузку.
+  buildSidebar("");
+
+  if (els.search){
+    els.search.addEventListener("input", (e)=>{
+      buildSidebar(e.target.value||"");
+      setActive(currentId());
+    });
+  }
+
+  if (els.btnReload) els.btnReload.addEventListener("click", ()=> loadPage(currentId()));
+  if (els.btnCopyLink) els.btnCopyLink.addEventListener("click", ()=> copyLink());
+
+  window.addEventListener("hashchange", ()=> loadPage(currentId()));
+  window.addEventListener("keydown", (e)=>{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==="k"){
+      e.preventDefault();
+      els.search?.focus();
+    }
+  });
+
+  loadPage(currentId());
+}
+
+boot();
