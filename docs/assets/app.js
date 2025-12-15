@@ -1,4 +1,11 @@
-// 1) Навигация (вкладки слева). Добавляешь сюда новые страницы.
+// =====================
+// Fox Ops Portal config
+// =====================
+
+// Кнопка "Редактировать на GitHub"
+const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/";
+
+// Навигация (левое меню)
 const NAV = [
   {
     section: "Оргструктура",
@@ -21,6 +28,18 @@ const NAV = [
     ]
   },
   {
+    section: "Регламенты",
+    items: [
+      { id: "reg-general", title: "Общий регламент", path: "content/reglaments/reg_general.md" },
+      { id: "reg-wb", title: "Регламент WB", path: "content/reglaments/reg_wb.md" },
+      { id: "reg-product", title: "Регламент продукта", path: "content/reglaments/reg_product.md" },
+      { id: "reg-buy", title: "Регламент закупа", path: "content/reglaments/reg_buying.md" },
+      { id: "reg-ms", title: "Регламент МойСклад", path: "content/reglaments/reg_ms.md" },
+      { id: "reg-fin", title: "Регламент финансов", path: "content/reglaments/reg_finance.md" },
+      { id: "reg-assist", title: "Регламент ассистента", path: "content/reglaments/reg_assistant.md" }
+    ]
+  },
+  {
     section: "Отчёты",
     items: [
       { id: "rep-daily-wb", title: "Daily WB", path: "content/reports/daily_wb.md" },
@@ -30,13 +49,18 @@ const NAV = [
       { id: "rep-weekly-fin", title: "Weekly финансы", path: "content/reports/weekly_finance.md" },
       { id: "rep-monthly-fin", title: "Monthly финансы", path: "content/reports/monthly_finance.md" }
     ]
+  },
+  {
+    section: "BI",
+    items: [
+      { id: "bi-ct", title: "Control Tower", path: "content/bi/control_tower.md" }
+    ]
   }
 ];
 
-// 2) Если хочешь кнопку “Редактировать на GitHub” — вставь ссылку:
-// "https://github.com/<user>/<repo>/edit/main/docs/"
-const REPO_EDIT_BASE = "";
-
+// =====================
+// Runtime
+// =====================
 const els = {
   sidebar: document.getElementById("sidebar"),
   content: document.getElementById("content"),
@@ -50,7 +74,7 @@ const els = {
 };
 
 function escapeHtml(str){
-  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  return (str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 function mdFallback(md){
@@ -88,11 +112,13 @@ function buildSidebar(filter=""){
     const section = document.createElement("div");
     section.className = "section";
     section.innerHTML = `<h3>${group.section}</h3>`;
+
     const nav = document.createElement("div");
     nav.className = "nav";
 
     group.items.forEach(item=>{
       if (q && !(`${group.section} ${item.title}`.toLowerCase().includes(q))) return;
+
       const btn = document.createElement("button");
       btn.textContent = item.title;
       btn.dataset.id = item.id;
@@ -170,62 +196,4 @@ async function loadPage(id){
   els.crumb.textContent = item.group;
   els.title.textContent = item.title;
 
-  if (REPO_EDIT_BASE){
-    els.btnEdit.style.display = "inline-flex";
-    els.btnEdit.onclick = ()=> window.open(REPO_EDIT_BASE + item.path, "_blank", "noopener");
-  } else {
-    els.btnEdit.style.display = "none";
-  }
-
-  try{
-    const res = await fetch(item.path, { cache: "no-store" });
-    if (!res.ok) throw new Error(`Не могу загрузить ${item.path} (${res.status})`);
-    const md = await res.text();
-
-    els.content.innerHTML = await renderMarkdown(md);
-    wireInternalLinks();
-    await renderMermaid();
-
-    els.last.textContent = new Date().toLocaleString();
-  }catch(err){
-    els.content.innerHTML = `
-      <h1>Ошибка загрузки</h1>
-      <p>${escapeHtml(String(err.message || err))}</p>
-      <p class="badge">Локально открывай через сервер (VSCode Live Server / python -m http.server). На GitHub Pages всё ок.</p>
-    `;
-  }
-}
-
-async function copyLink(){
-  await navigator.clipboard.writeText(window.location.href);
-  const old = els.btnCopyLink.textContent;
-  els.btnCopyLink.textContent = "Ссылка скопирована";
-  setTimeout(()=> els.btnCopyLink.textContent = old, 900);
-}
-
-function setupShortcuts(){
-  window.addEventListener("keydown", (e)=>{
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==="k"){
-      e.preventDefault();
-      els.search.focus();
-    }
-  });
-}
-
-function boot(){
-  buildSidebar("");
-  setupShortcuts();
-
-  els.search.addEventListener("input", (e)=>{
-    buildSidebar(e.target.value || "");
-    setActive(currentId());
-  });
-
-  els.btnReload.addEventListener("click", ()=> loadPage(currentId()));
-  els.btnCopyLink.addEventListener("click", ()=> copyLink());
-  window.addEventListener("hashchange", ()=> loadPage(currentId()));
-
-  loadPage(currentId());
-}
-
-boot();
+  if (REP
