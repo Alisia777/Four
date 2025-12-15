@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Fox Ops Portal</title>
+
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg"/>
+  <link rel="stylesheet" href="assets/style.css"/>
+
+  <!-- Markdown renderer -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Mermaid (дерево/схемы) -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="assets/img/fox.svg" alt="Fox"/>
+      <div class="title">
+        <strong>Fox Ops Portal</strong>
+        <span>ДИ • регламенты • отчёты • BI</span>
+      </div>
+    </div>
+
+    <div class="search" title="Ctrl/⌘ + K">
+      <input id="search" placeholder="Поиск по разделам и документам…"/>
+      <kbd>Ctrl K</kbd>
+    </div>
+
+    <div class="meta">
+      <span>Обновлено:</span>
+      <span id="lastUpdated">—</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main">
+      <img class="watermark" src="assets/img/fox.svg" alt="" aria-hidden="true"/>
+
+      <div class="pagehead">
+        <div>
+          <div class="crumb" id="crumb">—</div>
+          <div class="content" style="padding:0">
+            <h1 id="pagetitle" style="margin:0; font-size:24px">—</h1>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn" id="btnReload">Обновить</button>
+          <button class="btn" id="btnCopyLink">Скопировать ссылку</button>
+          <button class="btn" id="btnEdit">Редактировать на GitHub</button>
+        </div>
+      </div>
+
+      <div class="content" id="content">
+        <p>Загрузка…</p>
+      </div>
+
+      <div class="footer">
+        <div>
+          <span class="badge">Правило:</span>
+          задачи — только в трекере. отчёты — по дедлайнам.
+        </div>
+        <div>
+          <span style="color:var(--muted)">Файлы:</span>
+          <span class="badge">/docs/content/*.md</span>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
