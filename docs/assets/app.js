@@ -191,11 +191,55 @@ function renderMarkdown(md){
 async function renderMermaid(){
   if (!window.mermaid) return;
   try{
+    // Mermaid v10+: mermaid.render(...) returns an object { svg, bindFunctions }.
+    // If you accidentally do el.innerHTML = await mermaid.render(...), you will see "[object Object]".
+    // We render explicitly and insert ONLY the svg.
     mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "dark" });
-    const nodes = els.page.querySelectorAll(".mermaid");
+
+    const nodes = Array.from(els.page.querySelectorAll(".mermaid"));
     if (nodes.length === 0) return;
-    // mermaid.run renders all nodes passed
-    await mermaid.run({ nodes: Array.from(nodes) });
+
+    for (let i = 0; i < nodes.length; i++){
+      const el = nodes[i];
+      const def = (el.textContent || "").trim();
+      if (!def) continue;
+
+      try{
+        const id = `mmd-${Date.now()}-${i}`;
+        const out = await mermaid.render(id, def);
+        const svg = (typeof out === "string")
+          ? out
+          : (out && typeof out.svg === "string" ? out.svg : null);
+
+        if (!svg) {
+          throw new Error("Mermaid render: no SVG returned");
+        }
+
+        // Replace <pre class="mermaid"> with a neutral container so SVG isn't inside <pre>
+        const holder = document.createElement("div");
+        holder.className = "mermaid mermaid-diagram";
+        holder.innerHTML = svg;
+        el.replaceWith(holder);
+
+        if (out && typeof out.bindFunctions === "function") {
+          try{ out.bindFunctions(holder); }catch(_){/* noop */}
+        }
+      }catch(e){
+        // Fallback: keep the text + show a small error note
+        const wrap = document.createElement("div");
+        wrap.className = "note note--warn";
+        wrap.innerHTML = `<div><b>Mermaid не смог отрисовать схему.</b> ${escapeHtml(e?.message || String(e))}</div>`;
+
+        const pre = document.createElement("pre");
+        pre.className = "code-block";
+        pre.textContent = def;
+
+        const box = document.createElement("div");
+        box.appendChild(wrap);
+        box.appendChild(pre);
+        el.replaceWith(box);
+      }
+    }
   }catch(err){
     console.warn("Mermaid render failed:", err);
     // Show error inline (but keep page readable)
