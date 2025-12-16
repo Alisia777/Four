@@ -5,27 +5,180 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Fox Ops Portal</title>
 
-  <!-- анти-кэш: меняй v если браузер тянет старое -->
-  <link rel="icon" type="image/png" href="assets/img/favicon.png?v=3"/>
-  <link rel="stylesheet" href="assets/style.css?v=3"/>
+  <!-- Если браузер тащит "старьё" — просто увеличь BUILD_VERSION ниже -->
+  <link rel="icon" type="image/png" href="assets/img/favicon.png?v=1"/>
 
-  <!-- marked (опционально). Если не загрузится — в app.js есть fallback -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root{
+      --bg:#070708;
+      --panel:rgba(18,18,20,.65);
+      --panel2:rgba(18,18,20,.45);
+      --stroke:rgba(212,175,55,.25);
+      --text:#f4f4f5;
+      --muted:rgba(244,244,245,.65);
+      --gold:#d4af37;
+      --shadow:0 18px 60px rgba(0,0,0,.6);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      color:var(--text);
+      font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:
+        radial-gradient(900px 420px at 12% 10%, rgba(212,175,55,.10), transparent 55%),
+        radial-gradient(900px 520px at 90% 0%, rgba(212,175,55,.08), transparent 60%),
+        radial-gradient(1200px 900px at 55% 120%, rgba(0,0,0,.85), transparent 60%),
+        var(--bg);
+    }
+    a{color:rgba(212,175,55,.95)}
+    a:hover{opacity:.9}
+    header{
+      display:flex; gap:14px; align-items:center;
+      padding:14px 18px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      position:sticky; top:0;
+      backdrop-filter: blur(10px);
+      background: rgba(7,7,8,.55);
+      z-index:10;
+    }
+    .brand{display:flex; gap:10px; align-items:center; min-width:260px;}
+    .brand img{width:34px;height:34px;border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.45);}
+    .brandTitle{font-weight:800}
+    .brandSub{color:var(--muted); font-size:12px; margin-top:2px}
+    .searchWrap{
+      flex:1; display:flex; align-items:center; gap:10px;
+      background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:999px;
+      padding:10px 12px;
+    }
+    .searchWrap input{
+      flex:1; background:transparent; border:0; outline:none;
+      color:var(--text); font-size:13px;
+    }
+    .kbd{
+      font-size:11px; color:var(--muted);
+      padding:4px 8px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:999px;
+    }
+    .updated{min-width:200px; display:flex; gap:8px; justify-content:flex-end; color:var(--muted);}
+    .container{display:flex; gap:16px; padding:16px;}
+    aside{
+      width:300px;
+      padding:14px;
+      border-radius:var(--r);
+      background:var(--panel2);
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:var(--shadow);
+      height:calc(100vh - 96px);
+      overflow:auto;
+    }
+    .section{margin-bottom:14px}
+    .section h3{
+      margin:10px 0 8px;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:rgba(244,244,245,.55);
+    }
+    .nav{display:flex; flex-direction:column; gap:6px;}
+    .nav button{
+      text-align:left;
+      padding:10px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.06);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      cursor:pointer;
+    }
+    .nav button:hover{border-color:rgba(212,175,55,.25)}
+    .nav button.active{
+      border-color:rgba(212,175,55,.55);
+      box-shadow:0 0 0 1px rgba(212,175,55,.15) inset;
+    }
+    main{
+      flex:1;
+      border-radius:var(--r);
+      background:var(--panel);
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:var(--shadow);
+      min-height:calc(100vh - 96px);
+      position:relative;
+      overflow:hidden;
+    }
+    .watermark{
+      position:absolute;
+      right:28px; top:88px;
+      width:260px;
+      opacity:.12;
+      pointer-events:none;
+    }
+    .pagehead{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      padding:18px 18px 10px;
+    }
+    .crumb{color:var(--muted); font-size:12px;}
+    h1{margin:6px 0 0; font-size:22px; letter-spacing:.2px}
+    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .btn{
+      padding:10px 12px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      cursor:pointer;
+    }
+    .btn:hover{border-color:rgba(212,175,55,.35)}
+    .content{padding:0 18px 18px; max-width:1100px;}
+    .content h2,.content h3{margin:16px 0 10px}
+    .content p{color:rgba(244,244,245,.90)}
+    .content pre{
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.08);
+      padding:12px;
+      border-radius:14px;
+      overflow:auto;
+    }
+    .content table{width:100%; border-collapse:collapse; margin:12px 0;}
+    .content th,.content td{border:1px solid rgba(255,255,255,.10); padding:8px 10px; vertical-align:top;}
+    .content th{background:rgba(0,0,0,.25)}
+    .footer{
+      padding:12px 18px 16px;
+      border-top:1px solid rgba(255,255,255,.06);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      color:var(--muted);
+    }
+    .badge{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(212,175,55,.35);
+      color:rgba(212,175,55,.95);
+      background:rgba(212,175,55,.08);
+    }
+  </style>
 </head>
-<body>
 
-<header class="topbar">
+<body>
+<header>
   <div class="brand">
-    <img class="brandLogo" src="assets/img/fox.png?v=3" alt="Fox"
-         onerror="this.style.display='none'"/>
-    <div class="brandText">
+    <img src="assets/img/fox.png?v=1" alt="Fox" onerror="this.style.display='none'">
+    <div>
       <div class="brandTitle">Fox Ops Portal</div>
       <div class="brandSub">ДИ • регламенты • отчёты • BI</div>
     </div>
   </div>
 
   <div class="searchWrap" title="Ctrl/⌘ + K">
-    <input id="search" class="search" placeholder="Поиск по разделам и документам…"/>
+    <input id="search" placeholder="Поиск по разделам и документам…">
     <div class="kbd">Ctrl K</div>
   </div>
 
@@ -35,19 +188,16 @@
   </div>
 </header>
 
-<div class="layout">
-  <aside class="sidebar" id="sidebar">
-    <!-- заполняет app.js -->
-  </aside>
+<div class="container">
+  <aside id="sidebar"></aside>
 
-  <main class="main">
-    <img class="watermark" src="assets/img/fox.png?v=3" alt="" aria-hidden="true"
-         onerror="this.style.display='none'"/>
+  <main>
+    <img class="watermark" src="assets/img/fox.png?v=1" alt="" aria-hidden="true" onerror="this.style.display='none'">
 
     <div class="pagehead">
-      <div class="pageMeta">
+      <div>
         <div class="crumb" id="crumb">—</div>
-        <h1 class="pagetitle" id="pagetitle">—</h1>
+        <h1 id="pagetitle">—</h1>
       </div>
 
       <div class="actions">
@@ -64,11 +214,219 @@
 
     <div class="footer">
       <div><span class="badge">Правило:</span> задачи — только в трекере. отчёты — по дедлайнам.</div>
-      <div class="muted">Файлы: <span class="badge">/docs/content/*.md</span></div>
+      <div>Файлы: <span class="badge">/docs/content/*.md</span></div>
     </div>
   </main>
 </div>
 
-<script src="assets/app.js?v=3"></script>
+<script>
+/** ============================
+ *  Fox Ops Portal — single file
+ *  ============================ **/
+
+const BUILD_VERSION = "1"; // увеличивай на 2,3,4 если тащит кэш
+const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/";
+
+// ВАЖНО: пути ОТНОСИТЕЛЬНО корня Pages (то есть /Four/)
+// Файлы должны лежать в docs/content/...
+// "download" работает, если ты положишь pdf/docx в docs/files/...
+const NAV = [
+  { section:"Оргструктура", items:[
+    { id:"org-structure", title:"Дерево / структура", path:"content/org/structure.md" },
+    { id:"org-base", title:"Базовые правила", path:"content/org/base_rules.md" },
+    { id:"org-raci", title:"RACI", path:"content/org/raci.md" },
+  ]},
+  { section:"Должностные инструкции", items:[
+    { id:"role-coo", title:"Опердир (COO)", path:"content/roles/coo.md", download:"files/oper_dir.pdf" },
+    { id:"role-sales", title:"РОП", path:"content/roles/sales_head.md", download:"files/sales_head.pdf" },
+    { id:"role-product", title:"Продуктолог", path:"content/roles/productologist.md", download:"files/productologist.pdf" },
+    { id:"role-buyer", title:"Закупщик", path:"content/roles/buyer.md", download:"files/buyer.pdf" },
+    { id:"role-ms", title:"ОМ МойСклад", path:"content/roles/ms_operator.md", download:"files/ms_operator.pdf" },
+    { id:"role-fin", title:"Финансист", path:"content/roles/finance.md", download:"files/finance.pdf" },
+    { id:"role-asst", title:"Ассистент", path:"content/roles/assistant.md", download:"files/assistant.pdf" },
+  ]},
+  { section:"Отчёты", items:[
+    { id:"rep-daily-wb", title:"Daily WB", path:"content/reports/daily_wb.md" },
+    { id:"rep-weekly-wb", title:"Weekly WB", path:"content/reports/weekly_wb.md" },
+    { id:"rep-weekly-buy", title:"Weekly закуп", path:"content/reports/weekly_buying.md" },
+    { id:"rep-weekly-ms", title:"Weekly МойСклад", path:"content/reports/weekly_ms.md" },
+    { id:"rep-weekly-fin", title:"Weekly финансы", path:"content/reports/weekly_finance.md" },
+    { id:"rep-monthly-fin", title:"Monthly финансы", path:"content/reports/monthly_finance.md" },
+  ]},
+];
+
+const els = {
+  sidebar: document.getElementById("sidebar"),
+  content: document.getElementById("content"),
+  crumb: document.getElementById("crumb"),
+  title: document.getElementById("pagetitle"),
+  search: document.getElementById("search"),
+  btnReload: document.getElementById("btnReload"),
+  btnCopyLink: document.getElementById("btnCopyLink"),
+  btnEdit: document.getElementById("btnEdit"),
+  btnDownload: document.getElementById("btnDownload"),
+  last: document.getElementById("lastUpdated"),
+};
+
+function bust(url){
+  const u = new URL(url, window.location.href);
+  u.searchParams.set("v", BUILD_VERSION);
+  return u.toString();
+}
+function escapeHtml(str){
+  return (str||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// простенький markdown (чтобы не зависеть от CDN)
+function mdToHtml(md){
+  md = md.replace(/```([\s\S]*?)```/g, (m, code)=> `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
+  md = md.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+  md = md.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+  md = md.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+  md = md.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2">$1</a>`);
+  md = md.replace(/^\- (.*)$/gm, "<li>$1</li>");
+  md = md.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
+
+  md = md.split(/\n{2,}/).map(chunk=>{
+    const c = chunk.trim();
+    if (!c) return "";
+    if (/^\s*<(h1|h2|h3|ul|pre)/.test(c)) return c;
+    return `<p>${c.replace(/\n/g,"<br/>")}</p>`;
+  }).join("\n");
+
+  return md;
+}
+
+function buildSidebar(filter=""){
+  const q = (filter||"").trim().toLowerCase();
+  els.sidebar.innerHTML = "";
+
+  NAV.forEach(group=>{
+    const sec = document.createElement("div");
+    sec.className = "section";
+    sec.innerHTML = `<h3>${group.section}</h3>`;
+    const nav = document.createElement("div");
+    nav.className = "nav";
+
+    group.items.forEach(item=>{
+      if (q && !(`${group.section} ${item.title}`.toLowerCase().includes(q))) return;
+      const b = document.createElement("button");
+      b.textContent = item.title;
+      b.dataset.id = item.id;
+      b.onclick = ()=> navigate(item.id);
+      nav.appendChild(b);
+    });
+
+    sec.appendChild(nav);
+    els.sidebar.appendChild(sec);
+  });
+}
+
+function setActive(id){
+  document.querySelectorAll(".nav button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.id === id);
+  });
+}
+
+function getItemById(id){
+  for (const g of NAV){
+    const f = g.items.find(x=>x.id===id);
+    if (f) return { group:g.section, ...f };
+  }
+  return null;
+}
+
+function currentId(){
+  return (window.location.hash||"").replace("#","") || "org-structure";
+}
+
+function navigate(id){
+  window.location.hash = id;
+}
+
+function downloadFile(url){
+  const a = document.createElement("a");
+  a.href = bust(url);
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function loadPage(id){
+  const item = getItemById(id) || getItemById("org-structure");
+  if (!item) return;
+
+  setActive(item.id);
+  els.crumb.textContent = item.group;
+  els.title.textContent = item.title;
+
+  els.btnEdit.onclick = ()=> window.open(REPO_EDIT_BASE + item.path, "_blank", "noopener");
+
+  if (item.download){
+    els.btnDownload.style.display = "inline-flex";
+    els.btnDownload.onclick = ()=> downloadFile(item.download);
+  } else {
+    els.btnDownload.style.display = "none";
+  }
+
+  try{
+    const res = await fetch(bust(item.path), { cache:"no-store" });
+    if (!res.ok) throw new Error(`Не могу загрузить: ${item.path} (HTTP ${res.status})`);
+    const md = await res.text();
+    els.content.innerHTML = mdToHtml(md);
+
+    // делаем ссылки открываемыми
+    els.content.querySelectorAll("a").forEach(a=>{
+      const href = a.getAttribute("href") || "";
+      if (href.startsWith("#")) return;
+      a.target = "_blank";
+      a.rel = "noopener";
+    });
+
+    els.last.textContent = new Date().toLocaleString();
+  }catch(err){
+    els.content.innerHTML = `
+      <h2>Ошибка загрузки</h2>
+      <p>${escapeHtml(String(err.message||err))}</p>
+      <p class="badge">Проверь: существует ли файл и совпадает ли регистр пути.</p>
+    `;
+    els.last.textContent = new Date().toLocaleString();
+  }
+}
+
+async function copyLink(){
+  await navigator.clipboard.writeText(window.location.href);
+  const old = els.btnCopyLink.textContent;
+  els.btnCopyLink.textContent = "Скопировано";
+  setTimeout(()=> els.btnCopyLink.textContent = old, 900);
+}
+
+function boot(){
+  buildSidebar("");
+
+  els.search.addEventListener("input", (e)=>{
+    buildSidebar(e.target.value||"");
+    setActive(currentId());
+  });
+
+  els.btnReload.onclick = ()=> loadPage(currentId());
+  els.btnCopyLink.onclick = ()=> copyLink();
+
+  window.addEventListener("hashchange", ()=> loadPage(currentId()));
+  window.addEventListener("keydown", (e)=>{
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==="k"){
+      e.preventDefault();
+      els.search.focus();
+    }
+  });
+
+  loadPage(currentId());
+}
+
+boot();
+</script>
+
 </body>
 </html>
