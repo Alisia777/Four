@@ -1,225 +1,330 @@
-// Если снова “вечная загрузка” — открой DevTools → Console.
-// Но этим хотфиксом мы ещё и показываем ошибку прямо на странице.
+/* Fox Ops Portal — single-file SPA for GitHub Pages (project site friendly) */
 
-const BUILD_VERSION = "3";
-const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/";
+const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/"; // <- сюда “втыкаем” базу редактирования
 
-// 👇 сюда добавляешь "download", чтобы кнопка "Скачать оригинал" работала
-// Файлы кладём в docs/files/ (латиница, без пробелов)
+// Навигация. md — путь относительно /docs/ (т.е. относительно корня GitHub Pages).
 const NAV = [
   {
     section: "Оргструктура",
     items: [
-      { id: "org-structure", title: "Дерево / структура", path: "content/org/structure.md" },
-      { id: "org-base", title: "Базовые правила", path: "content/org/base_rules.md" },
-      { id: "org-raci", title: "RACI", path: "content/org/raci.md" }
-    ]
+      { id: "org-structure", title: "Дерево / структура", md: "content/org-structure.md" },
+      { id: "base-rules", title: "Базовые правила", md: "content/base-rules.md" },
+      { id: "raci", title: "RACI", md: "content/raci.md" },
+    ],
   },
   {
     section: "Должностные инструкции",
     items: [
-      { id: "role-coo", title: "Опердир (COO)", path: "content/roles/coo.md", download: "files/oper_dir.pdf" },
-      { id: "role-sales-head", title: "РОП", path: "content/roles/sales_head.md", download: "files/sales_head.pdf" },
-      { id: "role-productologist", title: "Продуктолог", path: "content/roles/productologist.md", download: "files/productologist.pdf" },
-      { id: "role-buyer", title: "Закупщик", path: "content/roles/buyer.md", download: "files/buyer.pdf" },
-      { id: "role-ms", title: "ОМ МойСклад", path: "content/roles/ms_operator.md", download: "files/ms_operator.pdf" },
-      { id: "role-fin", title: "Финансист", path: "content/roles/finance.md", download: "files/finance.pdf" },
-      { id: "role-assistant", title: "Ассистент", path: "content/roles/assistant.md", download: "files/assistant.pdf" }
-    ]
+      { id: "operdir", title: "Опердир (COO)", md: "content/roles/operdir.md", files: [{ name: "operdir.docx", path: "assets/files/operdir.docx" }] },
+      { id: "rop", title: "РОП", md: "content/roles/rop.md", files: [{ name: "rop.docx", path: "assets/files/rop.docx" }] },
+      { id: "productolog", title: "Продуктолог", md: "content/roles/productolog.md", files: [{ name: "productolog.docx", path: "assets/files/productolog.docx" }] },
+      { id: "zakup", title: "Закупщик", md: "content/roles/zakup.md", files: [{ name: "zakup.docx", path: "assets/files/zakup.docx" }] },
+      { id: "moisklad", title: "ОМ МойСклад", md: "content/roles/moisklad.md", files: [{ name: "moisklad.docx", path: "assets/files/moisklad.docx" }] },
+      { id: "finance", title: "Финансист", md: "content/roles/finance.md", files: [{ name: "finance.docx", path: "assets/files/finance.docx" }] },
+      { id: "assistant", title: "Ассистент", md: "content/roles/assistant.md", files: [{ name: "assistant.docx", path: "assets/files/assistant.docx" }] },
+    ],
   },
   {
     section: "Отчёты",
     items: [
-      { id: "rep-daily-wb", title: "Daily WB", path: "content/reports/daily_wb.md" },
-      { id: "rep-weekly-wb", title: "Weekly WB", path: "content/reports/weekly_wb.md" },
-      { id: "rep-weekly-buy", title: "Weekly закуп", path: "content/reports/weekly_buying.md" },
-      { id: "rep-weekly-ms", title: "Weekly МойСклад", path: "content/reports/weekly_ms.md" },
-      { id: "rep-weekly-fin", title: "Weekly финансы", path: "content/reports/weekly_finance.md" },
-      { id: "rep-monthly-fin", title: "Monthly финансы", path: "content/reports/monthly_finance.md" }
-    ]
-  }
+      { id: "rep-daily-wb", title: "Daily WB", md: "content/reports/daily-wb.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      { id: "rep-weekly-wb", title: "Weekly WB", md: "content/reports/weekly-wb.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      { id: "rep-weekly-zakup", title: "Weekly закуп", md: "content/reports/weekly-zakup.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      { id: "rep-weekly-ms", title: "Weekly МойСклад", md: "content/reports/weekly-ms.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      { id: "rep-weekly-fin", title: "Weekly финансы", md: "content/reports/weekly-fin.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      { id: "rep-monthly-fin", title: "Monthly финансы", md: "content/reports/monthly-fin.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+    ],
+  },
 ];
 
 const els = {
-  sidebar: document.getElementById("sidebar"),
-  content: document.getElementById("content"),
-  crumb: document.getElementById("crumb"),
-  title: document.getElementById("pagetitle"),
-  search: document.getElementById("search"),
-  btnReload: document.getElementById("btnReload"),
+  nav: document.getElementById("nav"),
+  page: document.getElementById("page"),
+  breadcrumb: document.getElementById("pageBreadcrumb"),
+  updatedAt: document.getElementById("updatedAt"),
+  mdPath: document.getElementById("mdPath"),
+  filesList: document.getElementById("filesList"),
+  btnRefresh: document.getElementById("btnRefresh"),
   btnCopyLink: document.getElementById("btnCopyLink"),
   btnEdit: document.getElementById("btnEdit"),
-  btnDownload: document.getElementById("btnDownload"),
-  last: document.getElementById("lastUpdated"),
+  searchInput: document.getElementById("searchInput"),
 };
 
-function bust(url){
-  const u = new URL(url, window.location.href);
-  u.searchParams.set("v", BUILD_VERSION);
-  return u.toString();
+const ALL_PAGES = NAV.flatMap(s => s.items.map(it => ({...it, section: s.section})));
+
+function nowStamp(){
+  const d = new Date();
+  const pad = n => String(n).padStart(2,"0");
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-function escapeHtml(str){
-  return (str||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function getBasePrefix(){
+  // For GitHub Pages project sites: /<repo>/
+  const parts = window.location.pathname.split("/").filter(Boolean);
+  // If hosted at root (custom domain), parts might be [].
+  if (parts.length === 0) return "/";
+  // If last part is index.html or 404.html — still base is /<first>/
+  return `/${parts[0]}/`;
 }
 
-function mdFallback(md){
-  // очень простой рендер, чтобы не зависеть от CDN
-  md = md.replace(/```([\s\S]*?)```/g, (m, code)=> `<pre><code>${escapeHtml(code.trim())}</code></pre>`);
-  md = md.replace(/^### (.*)$/gm, "<h3>$1</h3>");
-  md = md.replace(/^## (.*)$/gm, "<h2>$1</h2>");
-  md = md.replace(/^# (.*)$/gm, "<h1>$1</h1>");
-  md = md.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2">$1</a>`);
-  md = md.replace(/^\- (.*)$/gm, "<li>$1</li>");
-  md = md.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-  md = md.split(/\n{2,}/).map(chunk=>{
-    const c = chunk.trim();
-    if (!c) return "";
-    if (/^\s*<(h1|h2|h3|ul|pre)/.test(c)) return c;
-    return `<p>${c.replace(/\n/g,"<br/>")}</p>`;
-  }).join("\n");
-  return md;
-}
+const BASE_PREFIX = getBasePrefix();
 
-async function renderMarkdown(md){
-  if (window.marked && typeof window.marked.parse === "function"){
-    return window.marked.parse(md, { mangle:false, headerIds:true });
+function isExternalUrl(u){
+  return /^https?:\/\//i.test(u) || u.startsWith("mailto:") || u.startsWith("tel:") || u.startsWith("#");
+}
+function normalizeSiteUrl(u){
+  if (!u) return u;
+  if (isExternalUrl(u)) return u;
+  if (u.startsWith("//")) return u;
+  // IMPORTANT: paths starting with "/" must include repo base on project pages
+  if (u.startsWith("/")) {
+    // avoid double prefix if already has /<repo>/
+    if (u.startsWith(BASE_PREFIX)) return u;
+    return BASE_PREFIX + u.replace(/^\//,"");
   }
-  return mdFallback(md);
+  return u;
+}
+function cacheBust(u){
+  if (!u || isExternalUrl(u)) return u;
+  const sep = u.includes("?") ? "&" : "?";
+  return `${u}${sep}v=${Date.now()}`;
 }
 
-function buildSidebar(filter=""){
-  if (!els.sidebar) return;
-  els.sidebar.innerHTML = "";
-  const q = (filter||"").trim().toLowerCase();
+function setHash(id){
+  window.location.hash = `#/${id}`;
+}
+function getRouteId(){
+  const h = window.location.hash || "";
+  const m = h.match(/^#\/([^?]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
 
-  NAV.forEach(group=>{
+function renderNav(filterText=""){
+  const q = (filterText || "").trim().toLowerCase();
+  els.nav.innerHTML = "";
+
+  NAV.forEach(sec => {
     const section = document.createElement("div");
-    section.className = "section";
-    section.innerHTML = `<h3>${group.section}</h3>`;
+    section.className = "nav-section";
 
-    const nav = document.createElement("div");
-    nav.className = "nav";
+    const title = document.createElement("div");
+    title.className = "nav-title";
+    title.textContent = sec.section;
+    section.appendChild(title);
 
-    group.items.forEach(item=>{
-      if (q && !(`${group.section} ${item.title}`.toLowerCase().includes(q))) return;
-      const btn = document.createElement("button");
-      btn.textContent = item.title;
-      btn.dataset.id = item.id;
-      btn.addEventListener("click", ()=> navigate(item.id));
-      nav.appendChild(btn);
+    sec.items.forEach(item => {
+      const hay = `${item.title} ${sec.section}`.toLowerCase();
+      if (q && !hay.includes(q)) return;
+
+      const a = document.createElement("div");
+      a.className = "nav-item";
+      a.dataset.id = item.id;
+
+      a.innerHTML = `
+        <div>${escapeHtml(item.title)}</div>
+        <div class="nav-badge">${escapeHtml(sec.section)}</div>
+      `;
+      a.addEventListener("click", () => setHash(item.id));
+      section.appendChild(a);
     });
 
-    section.appendChild(nav);
-    els.sidebar.appendChild(section);
-  });
-}
-
-function getItemById(id){
-  for (const g of NAV){
-    const f = g.items.find(x=>x.id===id);
-    if (f) return { group: g.section, ...f };
-  }
-  return null;
-}
-
-function setActive(id){
-  document.querySelectorAll(".nav button").forEach(b=>{
-    b.classList.toggle("active", b.dataset.id === id);
-  });
-}
-
-function currentId(){
-  return (window.location.hash||"").replace("#","") || "org-structure";
-}
-
-function navigate(id){
-  const url = new URL(window.location.href);
-  url.hash = id;
-  window.history.pushState({}, "", url);
-  loadPage(id);
-}
-
-function downloadFile(url){
-  const a = document.createElement("a");
-  a.href = bust(url);
-  a.download = ""; // заставляет скачать, а не просто открыть
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
-async function loadPage(id){
-  const item = getItemById(id) || getItemById("org-structure");
-  if (!item) return;
-
-  setActive(item.id);
-  if (els.crumb) els.crumb.textContent = item.group;
-  if (els.title) els.title.textContent = item.title;
-
-  // edit
-  if (els.btnEdit){
-    els.btnEdit.onclick = ()=> window.open(REPO_EDIT_BASE + item.path, "_blank", "noopener");
-  }
-
-  // download
-  if (els.btnDownload){
-    if (item.download){
-      els.btnDownload.style.display = "inline-flex";
-      els.btnDownload.onclick = ()=> downloadFile(item.download);
-    } else {
-      els.btnDownload.style.display = "none";
+    // If section has no visible items under filter — skip rendering it
+    if (section.querySelectorAll(".nav-item").length > 0) {
+      els.nav.appendChild(section);
     }
+  });
+
+  markActive();
+}
+
+function markActive(){
+  const current = getRouteId() || ALL_PAGES[0]?.id;
+  document.querySelectorAll(".nav-item").forEach(el => {
+    el.classList.toggle("nav-item--active", el.dataset.id === current);
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
+}
+
+function setupMarked(){
+  // Custom renderer: make ```mermaid blocks render as <pre class="mermaid">...</pre>
+  const renderer = new marked.Renderer();
+
+  renderer.code = (code, infostring) => {
+    const lang = (infostring || "").trim().toLowerCase();
+    if (lang === "mermaid") {
+      return `<pre class="mermaid">${escapeHtml(code)}</pre>`;
+    }
+    return `<pre><code>${escapeHtml(code)}</code></pre>`;
+  };
+
+  marked.setOptions({
+    renderer,
+    gfm: true,
+    breaks: true,
+  });
+}
+
+function renderMarkdown(md){
+  const raw = marked.parse(md || "");
+  const safe = DOMPurify.sanitize(raw, {USE_PROFILES: {html: true}});
+  els.page.innerHTML = safe;
+
+  // Fix paths like /assets/... which break on GitHub Pages project sites
+  els.page.querySelectorAll("img").forEach(img => {
+    const src = img.getAttribute("src");
+    img.setAttribute("src", normalizeSiteUrl(src));
+  });
+  els.page.querySelectorAll("a").forEach(a => {
+    const href = a.getAttribute("href");
+    a.setAttribute("href", normalizeSiteUrl(href));
+    // For binary files: use download attr to force “save as”
+    const h = (href || "").toLowerCase();
+    if (!isExternalUrl(href) && (h.endsWith(".pdf") || h.endsWith(".docx") || h.endsWith(".xlsx") || h.endsWith(".pptx") || h.endsWith(".zip"))) {
+      a.setAttribute("download", "");
+    }
+  });
+}
+
+async function renderMermaid(){
+  if (!window.mermaid) return;
+  try{
+    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "dark" });
+    const nodes = els.page.querySelectorAll(".mermaid");
+    if (nodes.length === 0) return;
+    // mermaid.run renders all nodes passed
+    await mermaid.run({ nodes: Array.from(nodes) });
+  }catch(err){
+    console.warn("Mermaid render failed:", err);
+    // Show error inline (but keep page readable)
+    const warn = document.createElement("div");
+    warn.className = "error";
+    warn.innerHTML = `<div class="error__title">Mermaid: ошибка рендера</div>
+      <div class="error__meta">${escapeHtml(err?.message || String(err))}</div>`;
+    els.page.prepend(warn);
   }
+}
+
+function setFiles(page){
+  els.filesList.innerHTML = "";
+  els.mdPath.textContent = page?.md || "—";
+
+  const files = (page && page.files) ? page.files : [];
+  if (files.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "muted";
+    empty.textContent = "Нет прикреплённых файлов.";
+    els.filesList.appendChild(empty);
+    return;
+  }
+
+  files.forEach(f => {
+    const a = document.createElement("a");
+    a.className = "file-link";
+    a.href = cacheBust(normalizeSiteUrl(f.path));
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.download = ""; // force download if browser allows
+    a.innerHTML = `<div class="file-link__name">${escapeHtml(f.name)}</div><div class="file-link__tag">скачать</div>`;
+    els.filesList.appendChild(a);
+  });
+}
+
+function setHead(page){
+  const crumb = page ? `${page.section} • ${page.title}` : "—";
+  els.breadcrumb.textContent = crumb;
+  els.btnEdit.href = page ? `${REPO_EDIT_BASE}${page.md}` : REPO_EDIT_BASE;
+  els.updatedAt.textContent = nowStamp();
+}
+
+async function loadPageById(id, {bust=false} = {}){
+  const page = ALL_PAGES.find(p => p.id === id) || ALL_PAGES[0];
+  if (!page) return;
+
+  setHead(page);
+  setFiles(page);
+  markActive();
+
+  els.page.innerHTML = `<div class="loading">Загрузка…</div>`;
+
+  const url = normalizeSiteUrl(page.md);
+  const finalUrl = bust ? cacheBust(url) : url;
 
   try{
-    const res = await fetch(bust(item.path), { cache:"no-store" });
-    if (!res.ok) throw new Error(`Не могу загрузить ${item.path} (${res.status})`);
-    const md = await res.text();
-    if (els.content) els.content.innerHTML = await renderMarkdown(md);
-    if (els.last) els.last.textContent = new Date().toLocaleString();
+    const res = await fetch(finalUrl, { cache: bust ? "reload" : "default" });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const text = await res.text();
+    renderMarkdown(text);
+    await renderMermaid();
   }catch(err){
-    if (els.content){
-      els.content.innerHTML = `
-        <h1>Ошибка загрузки</h1>
-        <p>${escapeHtml(String(err.message||err))}</p>
-        <p class="badge">Проверь: существует ли файл и совпадает ли регистр пути.</p>
-      `;
-    }
+    els.page.innerHTML = `
+      <div class="error">
+        <div class="error__title">Не удалось загрузить документ</div>
+        <div class="error__meta">Файл: <code>${escapeHtml(page.md)}</code></div>
+        <div class="error__meta">URL: <code>${escapeHtml(finalUrl)}</code></div>
+        <div class="error__meta">Ошибка: ${escapeHtml(err?.message || String(err))}</div>
+        <div style="margin-top:10px" class="muted">Чаще всего причина — неправильный путь или регистр букв (GitHub Pages чувствителен к регистру).</div>
+      </div>
+    `;
   }
 }
 
-async function copyLink(){
-  await navigator.clipboard.writeText(window.location.href);
-  const old = els.btnCopyLink.textContent;
-  els.btnCopyLink.textContent = "Скопировано";
-  setTimeout(()=> els.btnCopyLink.textContent = old, 800);
+function setupSearch(){
+  const input = els.searchInput;
+  input.addEventListener("input", () => renderNav(input.value));
+
+  // Ctrl/Cmd + K => focus search
+  window.addEventListener("keydown", (e) => {
+    const isK = (e.key || "").toLowerCase() === "k";
+    if ((e.ctrlKey || e.metaKey) && isK) {
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+  });
+}
+
+function setupButtons(){
+  els.btnRefresh.addEventListener("click", () => {
+    const id = getRouteId() || ALL_PAGES[0]?.id;
+    loadPageById(id, {bust:true});
+  });
+
+  els.btnCopyLink.addEventListener("click", async () => {
+    const url = window.location.href;
+    try{
+      await navigator.clipboard.writeText(url);
+      els.btnCopyLink.textContent = "Скопировано ✓";
+      setTimeout(() => els.btnCopyLink.textContent = "Скопировать ссылку", 1200);
+    }catch{
+      // Fallback
+      prompt("Скопируй ссылку:", url);
+    }
+  });
 }
 
 function boot(){
-  // если JS вообще не стартует — ты увидишь вечную загрузку.
-  buildSidebar("");
+  setupMarked();
+  setupSearch();
+  setupButtons();
+  renderNav("");
 
-  if (els.search){
-    els.search.addEventListener("input", (e)=>{
-      buildSidebar(e.target.value||"");
-      setActive(currentId());
-    });
-  }
+  const initial = getRouteId() || ALL_PAGES[0]?.id;
+  if (initial) loadPageById(initial);
 
-  if (els.btnReload) els.btnReload.addEventListener("click", ()=> loadPage(currentId()));
-  if (els.btnCopyLink) els.btnCopyLink.addEventListener("click", ()=> copyLink());
-
-  window.addEventListener("hashchange", ()=> loadPage(currentId()));
-  window.addEventListener("keydown", (e)=>{
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==="k"){
-      e.preventDefault();
-      els.search?.focus();
-    }
+  window.addEventListener("hashchange", () => {
+    const id = getRouteId() || ALL_PAGES[0]?.id;
+    loadPageById(id);
   });
 
-  loadPage(currentId());
+  // If someone opens /Four/some-path (no hash), 404.html will redirect to #/...
+  if (!window.location.hash) setHash(initial);
 }
 
-boot();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
