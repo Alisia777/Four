@@ -190,47 +190,59 @@ function renderMarkdown(md){
 
 async function renderMermaid(){
   if (!window.mermaid) return;
-
-  try {
+  try{
+    // Mermaid v10+: mermaid.render(...) returns an object { svg, bindFunctions }.
+    // If you accidentally do el.innerHTML = await mermaid.render(...), you will see "[object Object]".
+    // We render explicitly and insert ONLY the svg.
     mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "dark" });
 
-    // Рендерим только те блоки, которые мы сами создали из ```mermaid
-    const blocks = Array.from(els.page.querySelectorAll("pre.mermaid"));
-    if (blocks.length === 0) return;
+    const nodes = Array.from(els.page.querySelectorAll(".mermaid"));
+    if (nodes.length === 0) return;
 
-    for (let i = 0; i < blocks.length; i++) {
-      const el = blocks[i];
+    for (let i = 0; i < nodes.length; i++){
+      const el = nodes[i];
       const def = (el.textContent || "").trim();
       if (!def) continue;
 
-      const id = `mmd-${Date.now()}-${i}`;
+      try{
+        const id = `mmd-${Date.now()}-${i}`;
+        const out = await mermaid.render(id, def);
+        const svg = (typeof out === "string")
+          ? out
+          : (out && typeof out.svg === "string" ? out.svg : null);
 
-      const out = await mermaid.render(id, def);
+        if (!svg) {
+          throw new Error("Mermaid render: no SVG returned");
+        }
 
-      // mermaid v10+ возвращает ОБЪЕКТ { svg, bindFunctions } — берём ТОЛЬКО svg-строку
-      const svg = (out && typeof out === "object" && typeof out.svg === "string") ? out.svg
-                : (typeof out === "string" ? out : null);
+        // Replace <pre class="mermaid"> with a neutral container so SVG isn't inside <pre>
+        const holder = document.createElement("div");
+        holder.className = "mermaid mermaid-diagram";
+        holder.innerHTML = svg;
+        el.replaceWith(holder);
 
-      if (!svg || typeof svg !== "string") {
-        throw new Error("Mermaid: render() вернул неожиданный тип (нет svg-строки).");
-      }
+        if (out && typeof out.bindFunctions === "function") {
+          try{ out.bindFunctions(holder); }catch(_){/* noop */}
+        }
+      }catch(e){
+        // Fallback: keep the text + show a small error note
+        const wrap = document.createElement("div");
+        wrap.className = "note note--warn";
+        wrap.innerHTML = `<div><b>Mermaid не смог отрисовать схему.</b> ${escapeHtml(e?.message || String(e))}</div>`;
 
-      const safeSvg = window.DOMPurify
-        ? DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })
-        : svg;
+        const pre = document.createElement("pre");
+        pre.className = "code-block";
+        pre.textContent = def;
 
-      const holder = document.createElement("div");
-      holder.className = "mermaid mermaid-diagram";
-      holder.innerHTML = safeSvg;
-
-      el.replaceWith(holder);
-
-      if (out && typeof out.bindFunctions === "function") {
-        try { out.bindFunctions(holder); } catch (_) {}
+        const box = document.createElement("div");
+        box.appendChild(wrap);
+        box.appendChild(pre);
+        el.replaceWith(box);
       }
     }
-  } catch (err) {
+  }catch(err){
     console.warn("Mermaid render failed:", err);
+    // Show error inline (but keep page readable)
     const warn = document.createElement("div");
     warn.className = "error";
     warn.innerHTML = `<div class="error__title">Mermaid: ошибка рендера</div>
@@ -360,118 +372,3 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
-
-// ===== Mermaid FIX (mermaid.render() returns { svg, bindFunctions } in v10+) =====
-
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/**
- * Превращает ```mermaid-блоки (обычно это <pre><code class="language-mermaid">...)
- * в <pre class="mermaid">... чтобы их корректно подхватил рендер.
- */
-function prepareMermaidBlocks(root) {
-  const scope = root || document;
-
-  // варианты классов, которые встречаются у markdown-рендеров
-  const selectors = [
-    "pre > code.language-mermaid",
-    "pre > code.lang-mermaid",
-    "pre > code.mermaid",
-    "code.language-mermaid",
-    "code.lang-mermaid"
-  ];
-
-  const codes = [];
-  selectors.forEach(sel => scope.querySelectorAll(sel).forEach(n => codes.push(n)));
-
-  // Уберём дубли
-  const uniq = Array.from(new Set(codes));
-
-  uniq.forEach(codeEl => {
-    const pre = codeEl.closest("pre") || codeEl.parentElement;
-    if (!pre) return;
-
-    // Если уже подготовлено — пропускаем
-    if (pre.classList && pre.classList.contains("mermaid")) return;
-
-    const def = (codeEl.textContent || "").trim();
-    if (!def) return;
-
-    const newPre = document.createElement("pre");
-    newPre.className = "mermaid";
-    newPre.textContent = def;
-
-    pre.replaceWith(newPre);
-  });
-}
-
-/**
- * Рендерит все <pre class="mermaid">...</pre> в SVG.
- * ВАЖНО: mermaid.render() в v10+ возвращает объект, поэтому берём out.svg,
- * иначе и получаешь [object Object].
- */
-async function renderMermaid(root) {
-  if (!window.mermaid) return;
-
-  const scope = root || document;
-
-  try {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: "dark",
-      securityLevel: "strict"
-    });
-
-    const blocks = Array.from(scope.querySelectorAll("pre.mermaid"));
-    if (!blocks.length) return;
-
-    for (let i = 0; i < blocks.length; i++) {
-      const el = blocks[i];
-      const def = (el.textContent || "").trim();
-      if (!def) continue;
-
-      const id = `mmd-${Date.now()}-${i}`;
-      const out = await mermaid.render(id, def);
-
-      // mermaid v10+: out = { svg: "<svg...>", bindFunctions: fn }
-      const svg =
-        (out && typeof out === "object" && typeof out.svg === "string")
-          ? out.svg
-          : (typeof out === "string" ? out : null);
-
-      if (!svg) throw new Error("Mermaid: render() вернул не SVG-строку.");
-
-      const safeSvg = window.DOMPurify
-        ? DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true, svgFilters: true } })
-        : svg;
-
-      const holder = document.createElement("div");
-      holder.className = "mermaid-diagram";
-      holder.innerHTML = safeSvg;
-
-      el.replaceWith(holder);
-
-      if (out && typeof out.bindFunctions === "function") {
-        try { out.bindFunctions(holder); } catch (_) {}
-      }
-    }
-  } catch (err) {
-    console.warn("Mermaid render failed:", err);
-    // Не ломаем страницу — просто показываем ошибку текстом
-    const warn = document.createElement("div");
-    warn.style.padding = "12px";
-    warn.style.border = "1px solid rgba(255,255,255,0.15)";
-    warn.style.borderRadius = "12px";
-    warn.style.margin = "12px 0";
-    warn.innerHTML = `<b>Mermaid: ошибка рендера</b><br><span style="opacity:.85">${escapeHtml(err?.message || String(err))}</span>`;
-    (scope.querySelector(".page") || scope).prepend(warn);
-  }
-}
-// ===== /Mermaid FIX =====
