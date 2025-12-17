@@ -1,5 +1,4 @@
-// Fox Ops Portal — app.js (SPA + markdown + files list)
-// Работает в GitHub Pages (repo pages) с /docs как source.
+/* Fox Ops Portal — app.js (fixed nav labels + mermaid auto-detect + clean routes) */
 
 const els = {
   nav: document.getElementById("nav"),
@@ -14,15 +13,20 @@ const els = {
   btnEdit: document.getElementById("btnEdit"),
 };
 
-const BASE_PREFIX = location.pathname.split("/").filter(Boolean)[0]
-  ? "/" + location.pathname.split("/").filter(Boolean)[0] + "/"
-  : "/";
+// --- GitHub Pages base (/Four/) ---
+function computeBasePrefix() {
+  const parts = location.pathname.split("/").filter(Boolean);
+  // /<repo>/...
+  if (parts.length >= 1) return "/" + parts[0] + "/";
+  return "/";
+}
+const BASE_PREFIX = computeBasePrefix();
 
-// Если GitHub Pages source = /docs, то на сайте путь /content/... и /assets/... уже от корня pages
+// content root inside docs published on Pages
 const CONTENT_ROOT = "content/";
 const EDIT_BASE = "https://github.com/alisia777/Four/edit/main/docs/";
 
-// Навигация и привязка файлов
+// NAV map
 const NAV = [
   {
     section: "Оргструктура",
@@ -75,52 +79,71 @@ function debounce(fn, ms) {
   };
 }
 
+// normalize relative links for Pages
 function normalizeSiteUrl(url) {
   if (!url) return url;
-  // если абсолютная ссылка — не трогаем
   if (/^(https?:)?\/\//i.test(url) || url.startsWith("mailto:") || url.startsWith("tel:")) return url;
-  // если начинается с / — добавим BASE_PREFIX
+
+  // root-relative -> repo-relative
   if (url.startsWith("/")) return BASE_PREFIX.replace(/\/+$/,"/") + url.replace(/^\/+/, "");
   return url;
 }
 
-function getRoute() {
-  // приоритет: hash /#/page-id
-  const h = location.hash || "";
-  const m = h.match(/^#\/(.+)$/);
-  if (m && m[1]) return decodeURIComponent(m[1]);
-  // fallback: pathname /<repo>/<page-id>
-  const parts = location.pathname.replace(BASE_PREFIX, "").split("/").filter(Boolean);
+// ---------- routing ----------
+function getRouteFromPathname() {
+  const rel = location.pathname.replace(BASE_PREFIX, "");
+  const parts = rel.split("/").filter(Boolean);
   return parts[0] || ALL_PAGES[0].id;
 }
 
+function canonicalizeUrl() {
+  // Если пришли на /id/id или /id/что-то — оставляем только /id
+  const rel = location.pathname.replace(BASE_PREFIX, "");
+  const parts = rel.split("/").filter(Boolean);
+  if (parts.length > 1) {
+    const canonical = BASE_PREFIX + parts[0];
+    history.replaceState(null, "", canonical);
+  }
+}
+
 function setRoute(route) {
-  // поддержка и pushState и hash (для 404.html редиректа)
-  const clean = String(route || "").trim();
-  const nextPath = BASE_PREFIX + clean;
-  history.pushState(null, "", nextPath);
-  location.hash = "#/" + encodeURIComponent(clean);
+  const id = String(route || "").trim() || ALL_PAGES[0].id;
+  const next = BASE_PREFIX + id;
+  history.pushState(null, "", next);
 }
 
 function findPageById(id) {
   return ALL_PAGES.find((p) => p.id === id) || null;
 }
 
-// ---------- markdown ----------
+// ---------- markdown + mermaid detection ----------
 function setupMarked() {
   if (!window.marked) return;
-  marked.setOptions({
-    breaks: true,
-    gfm: true,
-  });
+
+  marked.setOptions({ breaks: true, gfm: true });
 
   const renderer = new marked.Renderer();
   const origCode = renderer.code.bind(renderer);
 
-  // Mermaid: код-блок ```mermaid -> <pre class="mermaid">...</pre>
+  const looksLikeMermaid = (code = "") => {
+    const c = code.trim();
+    return (
+      c.startsWith("flowchart") ||
+      c.startsWith("graph ") ||
+      c.startsWith("sequenceDiagram") ||
+      c.startsWith("erDiagram") ||
+      c.startsWith("stateDiagram") ||
+      c.startsWith("classDiagram") ||
+      c.startsWith("gantt") ||
+      c.startsWith("journey") ||
+      c.startsWith("mindmap")
+    );
+  };
+
   renderer.code = (code, infostring, escaped) => {
     const lang = (infostring || "").trim().toLowerCase();
-    if (lang === "mermaid") {
+    // поддерживаем ```mermaid и также случаи, когда в md просто flowchart TB без указания языка
+    if (lang === "mermaid" || lang === "flowchart" || looksLikeMermaid(code)) {
       return `<pre class="mermaid">${escapeHtml(code)}</pre>`;
     }
     return origCode(code, infostring, escaped);
@@ -134,12 +157,11 @@ function renderMarkdown(mdText) {
   const safeHtml = window.DOMPurify ? DOMPurify.sanitize(rawHtml) : rawHtml;
   els.page.innerHTML = safeHtml;
 
-  // Нормализуем ссылки/картинки под GitHub Pages
+  // normalize <a> and <img>
   els.page.querySelectorAll("a").forEach((a) => {
     const href = a.getAttribute("href");
     if (!href) return;
     a.setAttribute("href", normalizeSiteUrl(href));
-    // внешние — в новой вкладке
     if (/^(https?:)?\/\//i.test(href)) {
       a.setAttribute("target", "_blank");
       a.setAttribute("rel", "noopener noreferrer");
@@ -174,6 +196,7 @@ async function initMermaid() {
 
 async function renderMermaid() {
   if (!window.mermaid || !mermaid.render) return;
+
   const blocks = Array.from(els.page.querySelectorAll("pre.mermaid"));
   if (!blocks.length) return;
 
@@ -184,19 +207,14 @@ async function renderMermaid() {
     block.parentNode.replaceChild(holder, block);
 
     try {
-      // Mermaid v10+: mermaid.render возвращает объект {svg, bindFunctions}
       const id = "mmd-" + Math.random().toString(16).slice(2);
-      if (mermaid.parse) {
-        try { await mermaid.parse(code); } catch (e) {}
-      }
-      const out = await mermaid.render(id, code);
-      const svg = typeof out === "string" ? out : (out && typeof out.svg === "string" ? out.svg : null);
-      if (!svg) throw new Error("Mermaid render вернул пустой SVG");
-      holder.innerHTML = svg;
 
-      if (!holder.querySelector("svg")) {
-        throw new Error("SVG не вставился в DOM (проверь CSP/кэш)");
-      }
+      // Mermaid v10+ : render() -> { svg, bindFunctions }
+      const out = await mermaid.render(id, code);
+      const svg = typeof out === "string" ? out : (out && out.svg ? out.svg : "");
+      if (!svg) throw new Error("Mermaid вернул пустой SVG");
+
+      holder.innerHTML = svg;
     } catch (e) {
       holder.innerHTML =
         `<div class="note warn"><b>Не удалось отрисовать схему</b><br/>${escapeHtml(e?.message || String(e))}</div>` +
@@ -236,7 +254,7 @@ function renderFiles(page) {
   els.filesList.appendChild(ul);
 }
 
-// ---------- nav ----------
+// ---------- nav (FIX: data-label/data-title) ----------
 function renderNav(filter = "") {
   const q = (filter || "").trim().toLowerCase();
   els.nav.innerHTML = "";
@@ -257,31 +275,37 @@ function renderNav(filter = "") {
       const hit = !q || it.title.toLowerCase().includes(q) || it.id.toLowerCase().includes(q);
       if (!hit) return;
 
-      const btn = document.createElement("button");
-      btn.className = "nav-item";
-      btn.type = "button";
-      btn.dataset.id = it.id;
-      btn.textContent = it.title;
+      const a = document.createElement("a");
+      a.className = "nav-item";
+      a.href = BASE_PREFIX + it.id;
 
-      btn.addEventListener("click", () => {
+      // важно для твоей темы/стилей (чтобы не были белыми пустыми плашками)
+      a.textContent = it.title;
+      a.dataset.label = it.title;
+      a.setAttribute("data-label", it.title);
+      a.setAttribute("data-title", it.title);
+      a.setAttribute("aria-label", it.title);
+
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
         setRoute(it.id);
         loadPage(it.id);
         highlightActive(it.id);
       });
 
-      list.appendChild(btn);
+      list.appendChild(a);
     });
 
     secEl.appendChild(list);
     els.nav.appendChild(secEl);
   });
 
-  highlightActive(getRoute());
+  highlightActive(getRouteFromPathname());
 }
 
 function highlightActive(pageId) {
   els.nav.querySelectorAll(".nav-item").forEach((b) => {
-    b.classList.toggle("active", b.dataset.id === pageId);
+    b.classList.toggle("active", b.getAttribute("href") === (BASE_PREFIX + pageId));
   });
 }
 
@@ -290,8 +314,8 @@ async function loadPage(pageId) {
   const page = findPageById(pageId) || ALL_PAGES[0];
 
   // breadcrumb + edit link + md path
-  els.breadcrumb.textContent = `Оргструктура · ${page.title}`.replace("Оргструктура · RACI", "RACI").replace("Оргструктура · ", "");
-  els.mdPath.textContent = `Markdown: /content/${page.md}`;
+  els.breadcrumb.textContent = page.title || "";
+  els.mdPath.textContent = `Markdown: /${CONTENT_ROOT}${page.md}`;
 
   const editUrl = EDIT_BASE + CONTENT_ROOT + page.md;
   els.btnEdit.onclick = () => window.open(editUrl, "_blank", "noopener,noreferrer");
@@ -321,7 +345,7 @@ function updateUpdatedAt() {
 }
 
 function copyLink() {
-  const route = getRoute();
+  const route = getRouteFromPathname();
   const url = location.origin + BASE_PREFIX + route;
   navigator.clipboard.writeText(url).then(() => {
     els.btnCopyLink.textContent = "Скопировано ✅";
@@ -331,17 +355,21 @@ function copyLink() {
 
 // ---------- init ----------
 setupMarked();
+canonicalizeUrl();
 renderNav();
 
-els.search.addEventListener("input", debounce((e) => {
-  renderNav(e.target.value || "");
-}, 120));
+if (els.search) {
+  els.search.addEventListener("input", debounce((e) => {
+    renderNav(e.target.value || "");
+  }, 120));
+}
 
-els.btnRefresh.addEventListener("click", () => loadPage(getRoute()));
-els.btnCopyLink.addEventListener("click", copyLink);
+if (els.btnRefresh) els.btnRefresh.addEventListener("click", () => loadPage(getRouteFromPathname()));
+if (els.btnCopyLink) els.btnCopyLink.addEventListener("click", copyLink);
 
 window.addEventListener("popstate", () => {
-  const r = getRoute();
+  canonicalizeUrl();
+  const r = getRouteFromPathname();
   highlightActive(r);
   loadPage(r);
 });
@@ -350,7 +378,6 @@ updateUpdatedAt();
 setInterval(updateUpdatedAt, 60_000);
 
 // старт
-const startRoute = getRoute();
+const startRoute = getRouteFromPathname();
 highlightActive(startRoute);
 loadPage(startRoute);
-
