@@ -1,649 +1,755 @@
-/* docs/assets/app.js
-   Fox Ops Portal — stable renderer
-   Fixes:
-   - replaces any "[object Object]" in org-structure with a real org-chart (HTML+SVG)
-   - updates decision rule text in content (COO approval threshold logic)
-   - handles GitHub Pages base path for assets/files
-*/
+/* Fox Ops Portal — single-file SPA for GitHub Pages (project Four) */
 
-(() => {
+(function () {
   "use strict";
 
-  // =========================
-  // CONFIG
-  // =========================
-  const REPO_OWNER = "Alisia777";
-  const REPO_NAME = "Four";
-  const BRANCH = "main";
-  const REPO_EDIT_BASE = `https://github.com/${REPO_OWNER}/${REPO_NAME}/edit/${BRANCH}/docs/`;
+  // ----------------------------
+  // Config
+  // ----------------------------
+  const REPO_EDIT_BASE = "https://github.com/alisia777/Four/edit/main/docs/";
 
-  // Новая логика (Дамир)
-  const DECISION_RULE_NEW =
-    "Изменения, которые опускают цену ниже плановой и/или ведут к снижению маржи относительно плановой — " +
-    "согласовать с Опердиром (COO). " +
-    "Повышение цены выше плановой (при сохранении/улучшении маржи) — на усмотрение менеджера, без согласования.";
+  const NAV = [
+    { id: "org-structure", title: "Дерево / структура", md: "content/org-structure.md", group: "ОРГСТРУКТУРА" },
+    { id: "base-rules", title: "Базовые правила", md: "content/base-rules.md", group: "ОРГСТРУКТУРА" },
+    { id: "raci", title: "RACI", md: "content/raci.md", group: "RACI" },
 
-  // Текст, который раньше был в правилах (если встретится — заменим)
-  const DECISION_RULE_OLD_FRAGMENTS = [
-    "Любые изменения цен / рекламы / закупок — через согласование с Опердиром (COO)",
-    "Любые изменения цен/рекламы/закупок — через согласование с Опердиром (COO)",
-    "Любые изменения цен / рекламы / закупок — через согласование",
+    { type: "divider", title: "Должностные инструкции" },
+
+    { id: "coo", title: "Опердир (COO)", md: "content/role-coo.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "sales", title: "РОП", md: "content/role-sales.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "product", title: "Продуктолог", md: "content/role-product.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "proc", title: "Закупщик", md: "content/role-proc.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "ms", title: "ОМ МойСклад", md: "content/role-ms.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "fin", title: "Финансист", md: "content/role-fin.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+    { id: "assistant", title: "Ассистент", md: "content/role-assistant.md", group: "ДОЛЖНОСТНЫЕ ИНСТРУКЦИИ" },
+
+    { type: "divider", title: "Отчёты" },
+    { id: "daily-wb", title: "Daily WB", md: "content/rep-daily-wb.md", group: "ОТЧЁТЫ" },
+    { id: "weekly-wb", title: "Weekly WB", md: "content/rep-weekly-wb.md", group: "ОТЧЁТЫ" },
+    { id: "weekly-buy", title: "Weekly закуп", md: "content/rep-weekly-buy.md", group: "ОТЧЁТЫ" },
+    { id: "weekly-ms", title: "Weekly МойСклад", md: "content/rep-weekly-ms.md", group: "ОТЧЁТЫ" },
+    { id: "weekly-fin", title: "Weekly финансы", md: "content/rep-weekly-fin.md", group: "ОТЧЁТЫ" },
+    { id: "monthly-fin", title: "Monthly финансы", md: "content/rep-monthly-fin.md", group: "ОТЧЁТЫ" },
   ];
 
-  // Кандидаты логотипа (подхватится первый существующий)
-  const LOGO_CANDIDATES = [
-    "assets/img/fox.png",
-    "assets/img/fox.svg",
-    "assets/img/fox_crown.png",
-    "assets/img/fox_king.png",
-    "assets/img/foxops.png",
-  ];
-
-  // =========================
-  // BASE PATH (GitHub Pages)
-  // =========================
-  const BASE_PATH = (() => {
-    const parts = location.pathname.split("/").filter(Boolean);
-    // Project pages: /<repo>/...
-    if (location.hostname.endsWith("github.io") && parts.length > 0) {
-      return `/${parts[0]}/`;
-    }
-    return "/";
-  })();
-
-  const toAbsUrl = (rel) => {
-    if (!rel) return "";
-    if (/^https?:\/\//i.test(rel)) return rel;
-    const clean = rel.replace(/^\/+/, "");
-    return new URL(clean, location.origin + BASE_PATH).href;
-  };
-
-  const cacheBust = () => `v=${Date.now()}`;
-
-  // =========================
-  // DOM helpers (бережно)
-  // =========================
-  const $ = (sel) => document.querySelector(sel);
-
-  function getEls() {
-    const content =
-      $("#content") ||
-      $("#doc-content") ||
-      $(".doc-content") ||
-      $(".content") ||
-      $("main") ||
-      document.body;
-
-    const title =
-      $("#docTitle") ||
-      $("#doc-title") ||
-      $(".doc-title") ||
-      $(".page-title") ||
-      null;
-
-    const updated =
-      $("#updatedAt") ||
-      $("#updated") ||
-      $(".updated-at") ||
-      null;
-
-    const btnRefresh =
-      $("#btnRefresh") ||
-      $("#refresh") ||
-      $('[data-action="refresh"]') ||
-      null;
-
-    const btnCopy =
-      $("#btnCopyLink") ||
-      $("#copyLink") ||
-      $('[data-action="copy-link"]') ||
-      null;
-
-    const btnEdit =
-      $("#btnEditGithub") ||
-      $("#editGithub") ||
-      $('[data-action="edit-github"]') ||
-      null;
-
-    const filesPanel =
-      $("#filesPanel") ||
-      $("#files") ||
-      $(".files-panel") ||
-      null;
-
-    const logoImg =
-      $("#brandLogo") ||
-      $(".brand__logo img") ||
-      $(".logo img") ||
-      $('img[alt*="Fox"]') ||
-      $('img[alt*="fox"]') ||
-      null;
-
-    return { content, title, updated, btnRefresh, btnCopy, btnEdit, filesPanel, logoImg };
+  // ----------------------------
+  // Utilities
+  // ----------------------------
+  function qs(sel, el) {
+    return (el || document).querySelector(sel);
+  }
+  function qsa(sel, el) {
+    return Array.from((el || document).querySelectorAll(sel));
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  }
+  function sleep(ms) {
+    return new Promise((r) => setTimeout(r, ms));
+  }
+  function normalizeSiteUrl(path) {
+    // Always keep relative for GitHub Pages subpath compatibility
+    return path.replace(/^\/+/, "");
+  }
+  function nowStamp() {
+    const d = new Date();
+    return d.toLocaleString("ru-RU", { hour12: false });
+  }
+  function copyToClipboard(text) {
+    return navigator.clipboard?.writeText(text).catch(() => {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    });
   }
 
-  // =========================
-  // MARKDOWN loader (если у тебя уже был marked — он останется)
-  // =========================
-  async function ensureMarked() {
-    if (window.marked) return window.marked;
-    await loadScript("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
-    return window.marked;
-  }
+  // ----------------------------
+  // Markdown + Mermaid loaders
+  // ----------------------------
+  let _markedReady = false;
+  let _mermaidReady = false;
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const s = document.createElement("script");
       s.src = src;
       s.async = true;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Failed to load: " + src));
+      s.onload = () => resolve();
+      s.onerror = () => reject(new Error("Failed to load " + src));
       document.head.appendChild(s);
     });
   }
 
-  // =========================
-  // ROUTING
-  // =========================
-  function getRoute() {
-    // ожидается: /Four/<slug>
-    const replaced = location.pathname.replace(BASE_PATH, "/"); // "/org-structure"
-    const clean = replaced.replace(/^\/+/, "").replace(/\/+$/, "");
-    return clean || ""; // "" = home
+  async function ensureMarkedAndMermaid() {
+    if (!_markedReady) {
+      // marked
+      await loadScript("https://cdn.jsdelivr.net/npm/marked/marked.min.js");
+      setupMarked();
+      _markedReady = true;
+    }
+    if (!_mermaidReady) {
+      await loadScript("https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js");
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "dark",
+          securityLevel: "strict",
+        });
+      } catch (e) {}
+      _mermaidReady = true;
+    }
   }
 
-  function routeToMdPath(route) {
-    const slug = route || "org-structure";
-    return `content/${slug}.md`;
+  function escapeHtml(str) {
+    return esc(str);
   }
 
-  // =========================
-  // Frontmatter -> files
-  // =========================
-  function splitFrontmatter(md) {
-    const text = String(md ?? "");
-    if (!text.startsWith("---")) return { metaText: "", body: text };
-    const end = text.indexOf("\n---", 3);
-    if (end === -1) return { metaText: "", body: text };
-    const metaText = text.slice(3, end).trim();
-    const body = text.slice(end + 4).replace(/^\s+/, "");
-    return { metaText, body };
+function applyContentPatches(mdPath, mdText){
+  // 1) Правки по порогам решений (Дамир): цены ниже плановой (в минус маржу) — согласуем, выше плановой — решение менеджера.
+  if (/(^|\/|\\)base-rules\.md$/i.test(mdPath)) {
+    mdText = mdText.replace(
+      /-\s*Любые изменения\s*\*\*цен\s*\/\s*рекламы\s*\/\s*закупок\*\*\s*—\s*через согласование с Опердиром \(COO\)\.?/i,
+      [
+        "- **Цены:** если ставим **ниже плановой** (в минус маржу) — **согласовываем с Опердиром (COO)**. Если ставим **выше плановой** — на усмотрение менеджера, **без согласования**.",
+        "- **Реклама / закупки:** любые изменения — через согласование с Опердиром (COO)."
+      ].join("\n")
+    );
   }
 
-  function unquote(s) {
-    const t = String(s ?? "").trim();
-    return t.replace(/^["']|["']$/g, "");
+  // 2) Защита от случайного [object Object] в контенте (если где-то подставили объект вместо строки)
+  mdText = mdText.replace(/\[object Object\]/g, "");
+
+  return mdText;
+}
+
+function setupMarked(){
+  // Custom renderer: make ```mermaid blocks render as <pre class="mermaid">...</pre>
+  const renderer = new marked.Renderer();
+
+  // Marked v4/v5+ compatibility: renderer.code may receive (code, infostring)
+  // or a single token object { text, lang, ... }.
+  renderer.code = (...args) => {
+    let codeText = "";
+    let langRaw = "";
+
+    if (args.length === 1 && args[0] && typeof args[0] === "object") {
+      // Newer marked: token object
+      codeText = String(args[0].text ?? "");
+      langRaw = String(args[0].lang ?? "");
+    } else {
+      // Older marked: (code, infostring)
+      codeText = String(args[0] ?? "");
+      langRaw = String(args[1] ?? "");
+    }
+
+    const lang = (langRaw || "").trim().toLowerCase();
+
+    if (lang === "mermaid") {
+      // Keep text as textContent (escape HTML so it stays inert)
+      return `<pre class="mermaid">${escapeHtml(codeText)}</pre>`;
+    }
+
+    const cls = lang ? ` class="language-${lang}"` : "";
+    return `<pre><code${cls}>${escapeHtml(codeText)}</code></pre>`;
+  };
+
+  marked.setOptions({
+    renderer,
+    gfm: true,
+    breaks: true,
+  });
+}
+
+  // ----------------------------
+  // Mermaid rendering
+  // ----------------------------
+  async function renderMermaidIn(container) {
+    if (!_mermaidReady) return;
+
+    const blocks = qsa("pre.mermaid", container);
+
+    for (const pre of blocks) {
+      const def = pre.textContent.trim();
+      if (!def) continue;
+
+      const id = "mmd-" + Math.random().toString(36).slice(2);
+      const wrap = document.createElement("div");
+      wrap.className = "mermaid-wrap";
+      wrap.dataset.mermaid = "1";
+      pre.replaceWith(wrap);
+
+      try {
+        // Mermaid v10: mermaid.render(id, def) -> { svg, bindFunctions }
+        const out = await mermaid.render(id, def);
+        const svg = typeof out === "string" ? out : (out && typeof out.svg === "string" ? out.svg : "");
+        wrap.innerHTML = svg || `<pre class="error">Mermaid render failed</pre>`;
+      } catch (e) {
+        wrap.innerHTML = `<pre class="error">${esc(e && e.message ? e.message : e)}</pre>`;
+      }
+    }
   }
 
-  function parseFilesFromMeta(metaText) {
-    const lines = (metaText || "").split("\n").map((l) => l.trimEnd());
-    const idx = lines.findIndex((l) => /^files\s*:\s*$/i.test(l.trim()));
-    if (idx === -1) return [];
+  // ----------------------------
+  // UI render
+  // ----------------------------
+  function buildLayout() {
+    document.body.innerHTML = `
+      <div class="app">
+        <aside class="sidebar">
+          <div class="brand">
+            <div class="brand-left">
+              <div class="fox"></div>
+              <div class="brand-txt">
+                <div class="title">Fox Ops Portal</div>
+                <div class="sub">ДИ • регламенты • отчёты • BI</div>
+              </div>
+            </div>
+          </div>
 
-    const items = [];
-    let cur = null;
+          <div class="search">
+            <input id="search" placeholder="Поиск по разделам и документам..." />
+          </div>
 
-    for (let i = idx + 1; i < lines.length; i++) {
-      const l = lines[i].trim();
-      if (!l) continue;
-      if (/^[a-z0-9_]+\s*:/i.test(l) && !l.startsWith("-")) break;
+          <nav id="nav" class="nav"></nav>
+        </aside>
 
-      if (l.startsWith("-")) {
-        if (cur) items.push(cur);
-        cur = { label: "", path: "" };
-        const rest = l.replace(/^-+\s*/, "");
-        if (rest) {
-          const m = rest.match(/^label\s*:\s*(.+)$/i);
-          if (m) cur.label = unquote(m[1]);
-        }
+        <main class="main">
+          <div class="topbar">
+            <div class="crumbs" id="crumbs"></div>
+            <div class="top-actions">
+              <button class="btn" id="btn-refresh" title="Обновить контент">Обновить</button>
+              <button class="btn" id="btn-copylink" title="Скопировать ссылку">Скопировать ссылку</button>
+              <a class="btn" id="btn-edit" href="#" target="_blank" rel="noopener">Редактировать на GitHub</a>
+            </div>
+            <div class="meta">
+              <span class="kbd">Ctrl</span> + <span class="kbd">K</span>
+              <span class="sep">|</span>
+              <span id="updated">Обновлено: —</span>
+            </div>
+          </div>
+
+          <div class="content-wrap">
+            <article class="content" id="content"></article>
+
+            <aside class="files" id="files">
+              <div class="files-head">Файлы</div>
+              <div class="files-body" id="files-body">
+                <div class="files-empty">Нет прикреплённых файлов.</div>
+              </div>
+              <div class="files-foot">
+                <div class="fox-watermark"></div>
+              </div>
+            </aside>
+          </div>
+
+          <footer class="footer">
+            <div>© Sunfox • “Лиса-логотип по умолчанию”</div>
+          </footer>
+        </main>
+      </div>
+    `;
+
+    injectStyles();
+    renderNav();
+    wireUI();
+  }
+
+  function injectStyles() {
+    const css = `
+      :root{
+        --bg:#0b0c0f;
+        --panel:#0f1117;
+        --panel2:#10131b;
+        --text:#e9ecf3;
+        --muted:#a3a9b8;
+        --line:rgba(255,255,255,.08);
+        --gold:#d1a84b;
+        --gold2:#b88a2f;
+        --shadow: 0 12px 40px rgba(0,0,0,.55);
+        --r:14px;
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body{
+        margin:0;
+        font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+        color:var(--text);
+        background:
+          radial-gradient(1200px 800px at 15% 10%, rgba(209,168,75,.08), transparent 55%),
+          radial-gradient(900px 700px at 85% 0%, rgba(118,171,255,.07), transparent 55%),
+          radial-gradient(900px 700px at 55% 100%, rgba(255,120,170,.05), transparent 55%),
+          var(--bg);
+      }
+      a{color:inherit}
+      .app{display:flex; height:100vh; width:100vw; overflow:hidden}
+      .sidebar{
+        width:280px;
+        padding:16px;
+        border-right:1px solid var(--line);
+        background: linear-gradient(180deg, rgba(15,17,23,.96), rgba(9,10,13,.92));
+      }
+      .brand{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        margin-bottom:12px;
+      }
+      .brand-left{display:flex; align-items:center; gap:10px}
+      .fox{
+        width:32px;height:32px;border-radius:10px;
+        background:
+          linear-gradient(135deg, rgba(209,168,75,.9), rgba(209,168,75,.15)),
+          url("./img/fox.png") center/cover no-repeat;
+        box-shadow: 0 10px 22px rgba(0,0,0,.45);
+      }
+      .brand-txt .title{font-weight:700; letter-spacing:.2px}
+      .brand-txt .sub{color:var(--muted); font-size:12px; margin-top:1px}
+      .search input{
+        width:100%;
+        padding:10px 12px;
+        border:1px solid var(--line);
+        background:rgba(255,255,255,.03);
+        color:var(--text);
+        border-radius:12px;
+        outline:none;
+      }
+      .search input:focus{border-color:rgba(209,168,75,.45); box-shadow:0 0 0 4px rgba(209,168,75,.08)}
+      .nav{margin-top:14px; overflow:auto; height:calc(100vh - 110px); padding-right:6px}
+      .nav::-webkit-scrollbar{width:10px}
+      .nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06); border-radius:99px}
+      .nav-group{margin:14px 0 6px; color:rgba(209,168,75,.85); font-size:11px; letter-spacing:.12em}
+      .nav-item{
+        display:flex; align-items:center; gap:10px;
+        padding:8px 10px;
+        border:1px solid transparent;
+        border-radius:12px;
+        cursor:pointer;
+        color:rgba(233,236,243,.92);
+        user-select:none;
+      }
+      .nav-item:hover{background:rgba(255,255,255,.03); border-color:rgba(255,255,255,.06)}
+      .nav-item.active{background:rgba(209,168,75,.08); border-color:rgba(209,168,75,.35)}
+      .nav-item small{color:var(--muted)}
+      .nav-divider{
+        margin:12px 0;
+        height:1px;
+        background:var(--line);
+      }
+      .main{flex:1; overflow:hidden}
+      .topbar{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:14px 18px;
+        border-bottom:1px solid var(--line);
+        background:rgba(10,11,14,.55);
+        backdrop-filter: blur(10px);
+      }
+      .crumbs{color:var(--muted); font-size:12px}
+      .top-actions{display:flex; align-items:center; gap:10px}
+      .btn{
+        padding:7px 10px;
+        border:1px solid rgba(255,255,255,.12);
+        background:rgba(255,255,255,.03);
+        color:var(--text);
+        border-radius:999px;
+        cursor:pointer;
+        text-decoration:none;
+        font-size:12px;
+      }
+      .btn:hover{border-color:rgba(209,168,75,.35); background:rgba(209,168,75,.06)}
+      .meta{color:var(--muted); font-size:12px; white-space:nowrap}
+      .kbd{
+        display:inline-block;
+        padding:2px 6px;
+        border:1px solid rgba(255,255,255,.14);
+        border-bottom-color:rgba(255,255,255,.08);
+        border-radius:7px;
+        background:rgba(255,255,255,.03);
+        font-size:11px;
+      }
+      .sep{opacity:.5; margin:0 8px}
+      .content-wrap{
+        height:calc(100vh - 58px);
+        display:flex;
+        gap:14px;
+        padding:14px 14px 18px;
+        overflow:hidden;
+      }
+      .content{
+        flex:1;
+        overflow:auto;
+        padding:18px 18px 28px;
+        border:1px solid var(--line);
+        border-radius:18px;
+        background:rgba(15,17,23,.64);
+        box-shadow: var(--shadow);
+        position:relative;
+      }
+      .content::-webkit-scrollbar{width:10px}
+      .content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06); border-radius:99px}
+
+      .files{
+        width:320px;
+        border:1px solid var(--line);
+        border-radius:18px;
+        background:rgba(15,17,23,.64);
+        box-shadow: var(--shadow);
+        overflow:hidden;
+        display:flex;
+        flex-direction:column;
+      }
+      .files-head{
+        padding:14px 14px 10px;
+        border-bottom:1px solid var(--line);
+        font-weight:700;
+      }
+      .files-body{padding:10px 14px; overflow:auto; flex:1}
+      .files-body::-webkit-scrollbar{width:10px}
+      .files-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.06); border-radius:99px}
+      .files-empty{color:var(--muted); font-size:12px}
+      .file-item{
+        display:flex; flex-direction:column; gap:2px;
+        padding:10px 10px;
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:14px;
+        margin-bottom:10px;
+        background:rgba(255,255,255,.02);
+      }
+      .file-item a{font-weight:650; text-decoration:none}
+      .file-item a:hover{color:rgba(209,168,75,.95)}
+      .file-item small{color:var(--muted)}
+      .files-foot{
+        padding:10px 14px 14px;
+        border-top:1px solid var(--line);
+        position:relative;
+      }
+      .fox-watermark{
+        width:88px;
+        height:88px;
+        position:absolute;
+        right:10px;
+        bottom:6px;
+        opacity:.22;
+        background:url("./img/fox_crown.png") center/contain no-repeat;
+        filter: drop-shadow(0 14px 24px rgba(0,0,0,.6));
+      }
+      .footer{
+        position:fixed;
+        right:20px;
+        bottom:10px;
+        color:rgba(255,255,255,.38);
+        font-size:11px;
+        pointer-events:none;
+      }
+
+      /* Markdown styling */
+      .content h1{font-size:26px; margin:0 0 10px}
+      .content h2{font-size:18px; margin:18px 0 8px}
+      .content h3{font-size:15px; margin:14px 0 6px; color:rgba(233,236,243,.95)}
+      .content p{margin:8px 0; color:rgba(233,236,243,.92)}
+      .content ul{margin:8px 0 8px 18px}
+      .content li{margin:4px 0}
+      .content code{
+        padding:2px 6px;
+        background:rgba(255,255,255,.04);
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:8px;
+      }
+      .content pre{
+        margin:10px 0;
+        padding:12px 12px;
+        background:rgba(0,0,0,.35);
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:14px;
+        overflow:auto;
+      }
+      .content pre code{background:transparent; border:none; padding:0}
+      .note{
+        display:inline-flex;
+        align-items:center;
+        gap:8px;
+        color:rgba(209,168,75,.95);
+        background:rgba(209,168,75,.08);
+        border:1px solid rgba(209,168,75,.35);
+        padding:6px 10px;
+        border-radius:999px;
+        font-size:12px;
+        margin-top:8px;
+      }
+      .hr{height:1px; background:var(--line); margin:14px 0}
+      .error{color:#ff9fb8}
+      .mermaid-wrap{margin:12px 0; padding:10px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(0,0,0,.18); overflow:auto}
+      .mermaid-wrap svg{max-width:100%; height:auto}
+    `;
+    const style = document.createElement("style");
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  function renderNav() {
+    const nav = qs("#nav");
+    nav.innerHTML = "";
+
+    let currentGroup = null;
+
+    for (const item of NAV) {
+      if (item.type === "divider") {
+        const div = document.createElement("div");
+        div.className = "nav-divider";
+        nav.appendChild(div);
+        const g = document.createElement("div");
+        g.className = "nav-group";
+        g.textContent = item.title.toUpperCase();
+        nav.appendChild(g);
+        currentGroup = item.title;
         continue;
       }
 
-      if (!cur) continue;
-      const m1 = l.match(/^label\s*:\s*(.+)$/i);
-      const m2 = l.match(/^path\s*:\s*(.+)$/i);
-      if (m1) cur.label = unquote(m1[1]);
-      if (m2) cur.path = unquote(m2[1]);
-    }
-    if (cur) items.push(cur);
+      if (item.group && item.group !== currentGroup) {
+        // group heading
+        const g = document.createElement("div");
+        g.className = "nav-group";
+        g.textContent = item.group.toUpperCase();
+        nav.appendChild(g);
+        currentGroup = item.group;
+      }
 
-    return items.filter((x) => x.path);
+      const a = document.createElement("div");
+      a.className = "nav-item";
+      a.dataset.id = item.id;
+      a.innerHTML = `<span>${esc(item.title)}</span>`;
+      a.addEventListener("click", () => {
+        location.hash = "#/" + item.id;
+      });
+      nav.appendChild(a);
+    }
+
+    highlightActiveNav();
   }
 
-  // =========================
-  // FILES panel
-  // =========================
-  function renderFilesPanel(panel, files) {
-    if (!panel) return;
-    if (!files || files.length === 0) {
-      panel.innerHTML = `<div style="opacity:.8">Нет прикреплённых файлов.</div>`;
+  function highlightActiveNav() {
+    const id = getRouteId();
+    qsa(".nav-item").forEach((el) => el.classList.toggle("active", el.dataset.id === id));
+  }
+
+  function wireUI() {
+    const search = qs("#search");
+    search.addEventListener("input", () => {
+      const q = search.value.trim().toLowerCase();
+      qsa(".nav-item").forEach((el) => {
+        const txt = el.textContent.trim().toLowerCase();
+        el.style.display = !q || txt.includes(q) ? "" : "none";
+      });
+      qsa(".nav-group, .nav-divider").forEach((el) => (el.style.display = q ? "none" : ""));
+    });
+
+    qs("#btn-refresh").addEventListener("click", () => {
+      // Force reload current route
+      loadRoute(true);
+    });
+
+    qs("#btn-copylink").addEventListener("click", async () => {
+      await copyToClipboard(location.href);
+      toast("Ссылка скопирована");
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        qs("#search").focus();
+      }
+    });
+
+    window.addEventListener("hashchange", () => {
+      highlightActiveNav();
+      loadRoute();
+    });
+  }
+
+  function toast(msg) {
+    const t = document.createElement("div");
+    t.style.position = "fixed";
+    t.style.right = "18px";
+    t.style.top = "16px";
+    t.style.padding = "10px 12px";
+    t.style.borderRadius = "12px";
+    t.style.background = "rgba(15,17,23,.92)";
+    t.style.border = "1px solid rgba(209,168,75,.35)";
+    t.style.boxShadow = "0 16px 40px rgba(0,0,0,.55)";
+    t.style.color = "rgba(233,236,243,.95)";
+    t.style.zIndex = "9999";
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 1600);
+  }
+
+  // ----------------------------
+  // Routing + content
+  // ----------------------------
+  function getRouteId() {
+    const h = (location.hash || "").replace(/^#\/?/, "");
+    const id = h || NAV.find((x) => x.id)?.id || "org-structure";
+    return id;
+  }
+
+  function getNavItem(id) {
+    return NAV.find((x) => x.id === id);
+  }
+
+  function setCrumbs(item) {
+    const crumbs = qs("#crumbs");
+    const group = item.group ? esc(item.group) : "";
+    crumbs.textContent = group ? `${group} / ${item.title}` : item.title;
+  }
+
+  function setEditLink(item) {
+    const a = qs("#btn-edit");
+    a.href = REPO_EDIT_BASE + normalizeSiteUrl(item.md);
+  }
+
+  function setUpdated() {
+    qs("#updated").textContent = "Обновлено: " + nowStamp();
+  }
+
+  function renderFilesPanel(item) {
+    const body = qs("#files-body");
+    body.innerHTML = "";
+
+    // Convention: if content markdown has an HTML comment block:
+    // <!-- FILES: path1|Title 1 ; path2|Title 2 -->
+    // We'll read it after markdown is fetched; for now, empty.
+    body.innerHTML = `<div class="files-empty">Нет прикреплённых файлов.</div>`;
+  }
+
+  function readFilesDirective(mdText) {
+    const m = mdText.match(/<!--\s*FILES:\s*([\s\S]*?)-->/i);
+    if (!m) return [];
+    const raw = m[1].trim();
+    if (!raw) return [];
+    // split by ; or newline
+    const parts = raw.split(/;|\n/).map((s) => s.trim()).filter(Boolean);
+    const out = [];
+    for (const p of parts) {
+      const [path, title] = p.split("|").map((s) => (s || "").trim());
+      if (!path) continue;
+      out.push({
+        path,
+        title: title || path.split("/").pop(),
+      });
+    }
+    return out;
+  }
+
+  function renderFiles(files) {
+    const body = qs("#files-body");
+    body.innerHTML = "";
+    if (!files.length) {
+      body.innerHTML = `<div class="files-empty">Нет прикреплённых файлов.</div>`;
       return;
     }
-    panel.innerHTML = files
-      .map((f) => {
-        const label = f.label || f.path.split("/").pop();
-        const href = toAbsUrl(f.path);
-        return `
-          <div style="margin:10px 0;">
-            <a href="${href}" download style="text-decoration:none;">
-              📎 ${escapeHtml(label)}
-            </a>
-          </div>`;
-      })
-      .join("");
-  }
-
-  // =========================
-  // Fix asset links in rendered content
-  // =========================
-  function fixAssetLinks(container) {
-    const imgs = container.querySelectorAll("img");
-    imgs.forEach((img) => {
-      const src = img.getAttribute("src") || "";
-      if (src.startsWith("/assets/")) img.setAttribute("src", toAbsUrl(src.slice(1)));
-      if (src.startsWith("assets/")) img.setAttribute("src", toAbsUrl(src));
-    });
-
-    const links = container.querySelectorAll("a");
-    links.forEach((a) => {
-      const href = a.getAttribute("href") || "";
-      if (href.startsWith("/assets/")) a.setAttribute("href", toAbsUrl(href.slice(1)));
-      if (href.startsWith("assets/")) a.setAttribute("href", toAbsUrl(href));
-    });
-  }
-
-  // =========================
-  // Replace decision rule text inside content
-  // =========================
-  function patchDecisionRule(container) {
-    // заменяем в тексте (в любых местах) старую формулировку на новую
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-
-    nodes.forEach((n) => {
-      const t = n.nodeValue || "";
-      for (const oldFrag of DECISION_RULE_OLD_FRAGMENTS) {
-        if (t.includes(oldFrag)) {
-          n.nodeValue = t.replace(oldFrag, DECISION_RULE_NEW);
-          break;
-        }
-      }
-    });
-  }
-
-  // =========================
-  // ORG CHART (HTML + SVG lines)
-  // =========================
-  function orgChartHtml() {
-    return `
-      <div class="fox-org-wrap" data-fox-org>
-        <style>
-          .fox-org-wrap{position:relative;margin:10px 0 0;padding:14px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background:rgba(0,0,0,.25);}
-          .fox-org-title{font-weight:700;margin:0 0 10px 0;}
-          .fox-org-sub{opacity:.75;margin:0 0 12px 0;font-size:13px;}
-          .fox-org{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 6px 18px;}
-          .fox-org-row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
-          .fox-node{position:relative;min-width:220px;max-width:280px;padding:10px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.35);box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center}
-          .fox-node .r{font-weight:700}
-          .fox-node .d{opacity:.75;font-size:12px;margin-top:4px;line-height:1.35}
-          .fox-lines{position:absolute;inset:0;pointer-events:none}
-          .fox-note{margin-top:12px;opacity:.8;font-size:13px}
-        </style>
-
-        <div class="fox-org-title">Оргструктура (схема)</div>
-        <div class="fox-org-sub">Оптимизация без расширения штата — связи и владельцы контуров.</div>
-
-        <div class="fox-org" id="foxOrg">
-          <svg class="fox-lines" id="foxOrgLines"></svg>
-
-          <div class="fox-org-row">
-            <div class="fox-node" data-id="owners">
-              <div class="r">Собственники</div>
-              <div class="d">Цели / бюджет / стратегические решения</div>
-            </div>
-          </div>
-
-          <div class="fox-org-row">
-            <div class="fox-node" data-id="coo">
-              <div class="r">Опердир (COO)</div>
-              <div class="d">Контур исполнения: план-факт, регламенты, KPI, эскалации</div>
-            </div>
-          </div>
-
-          <div class="fox-org-row">
-            <div class="fox-node" data-id="rop">
-              <div class="r">РОП / Sales</div>
-              <div class="d">Продажи, реклама, выполнение планов, отчётность</div>
-            </div>
-            <div class="fox-node" data-id="product">
-              <div class="r">Продуктолог</div>
-              <div class="d">Ассортимент, карточки, SEO/контент, матрица</div>
-            </div>
-            <div class="fox-node" data-id="buy">
-              <div class="r">Закупщик</div>
-              <div class="d">Поставки: ETA, риски, закрытие узких мест</div>
-            </div>
-            <div class="fox-node" data-id="ms">
-              <div class="r">ОМ МойСклад</div>
-              <div class="d">Учёт прихода/перемещений, инвентаризация, качество остатков</div>
-            </div>
-            <div class="fox-node" data-id="fin">
-              <div class="r">Финансист</div>
-              <div class="d">ДДС, P&amp;L, контроль расходов, прозрачность кассы</div>
-            </div>
-            <div class="fox-node" data-id="asst">
-              <div class="r">Ассистент</div>
-              <div class="d">Документооборот, протоколы, напоминания, сбор данных</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="fox-note"><b>Правило решений:</b> ${escapeHtml(DECISION_RULE_NEW)}</div>
-      </div>
-    `;
-  }
-
-  function drawOrgLines(root) {
-    const wrap = root.querySelector("[data-fox-org]");
-    if (!wrap) return;
-
-    const chart = wrap.querySelector("#foxOrg");
-    const svg = wrap.querySelector("#foxOrgLines");
-    if (!chart || !svg) return;
-
-    const rect = chart.getBoundingClientRect();
-    const w = Math.max(1, Math.floor(rect.width));
-    const h = Math.max(1, Math.floor(rect.height));
-
-    svg.setAttribute("width", String(w));
-    svg.setAttribute("height", String(h));
-    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    svg.innerHTML = "";
-
-    const nodeById = {};
-    chart.querySelectorAll(".fox-node[data-id]").forEach((el) => {
-      nodeById[el.getAttribute("data-id")] = el;
-    });
-
-    const links = [
-      ["owners", "coo"],
-      ["coo", "rop"],
-      ["coo", "product"],
-      ["coo", "buy"],
-      ["coo", "ms"],
-      ["coo", "fin"],
-      ["coo", "asst"],
-    ];
-
-    const chartRect = chart.getBoundingClientRect();
-
-    function centerTop(el) {
-      const r = el.getBoundingClientRect();
-      return { x: r.left - chartRect.left + r.width / 2, y: r.top - chartRect.top };
-    }
-    function centerBottom(el) {
-      const r = el.getBoundingClientRect();
-      return { x: r.left - chartRect.left + r.width / 2, y: r.bottom - chartRect.top };
-    }
-
-    links.forEach(([from, to]) => {
-      const a = nodeById[from];
-      const b = nodeById[to];
-      if (!a || !b) return;
-
-      const p1 = centerBottom(a);
-      const p2 = centerTop(b);
-
-      const midY = p1.y + Math.min(26, Math.max(14, (p2.y - p1.y) / 2));
-
-      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute(
-        "d",
-        `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p1.x.toFixed(1)} ${midY.toFixed(
-          1
-        )} L ${p2.x.toFixed(1)} ${midY.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
-      );
-      path.setAttribute("fill", "none");
-      path.setAttribute("stroke", "rgba(255,255,255,.22)");
-      path.setAttribute("stroke-width", "1.2");
-      path.setAttribute("stroke-linecap", "round");
-      svg.appendChild(path);
-    });
-  }
-
-  function replaceObjectObjectWithOrgChart(container) {
-    // 1) находим элементы, где текст ровно "[object Object]"
-    const all = Array.from(container.querySelectorAll("*"));
-    const targets = all.filter((el) => (el.textContent || "").trim() === "[object Object]");
-
-    if (targets.length > 0) {
-      targets.forEach((el, idx) => {
-        // заменяем первый найденный на нашу схему, остальные просто удаляем
-        if (idx === 0) {
-          const box = document.createElement("div");
-          box.innerHTML = orgChartHtml();
-          el.replaceWith(box);
-        } else {
-          el.remove();
-        }
-      });
-      return true;
-    }
-
-    // 2) если вдруг это текстовый узел внутри блока — вычищаем
-    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-    const nodes = [];
-    while (walker.nextNode()) nodes.push(walker.currentNode);
-    let found = false;
-
-    nodes.forEach((n) => {
-      if ((n.nodeValue || "").includes("[object Object]")) {
-        n.nodeValue = (n.nodeValue || "").replace(/\[object Object\]/g, "");
-        found = true;
-      }
-    });
-
-    // если нашли, но не было “чистого элемента”, всё равно вставим схему после заголовка
-    if (found) {
-      insertOrgChartAfterHeader(container);
-      return true;
-    }
-
-    return false;
-  }
-
-  function insertOrgChartAfterHeader(container) {
-    const h2 = Array.from(container.querySelectorAll("h2, h3")).find((h) =>
-      (h.textContent || "").toLowerCase().includes("оргструктура")
-    );
-    const anchor = h2 || container.querySelector("h1") || container.firstElementChild;
-    if (!anchor) return;
-
-    // не дублируем
-    if (container.querySelector("[data-fox-org]")) return;
-
-    const box = document.createElement("div");
-    box.innerHTML = orgChartHtml();
-    anchor.insertAdjacentElement("afterend", box);
-  }
-
-  // =========================
-  // LOGO picker
-  // =========================
-  async function pickLogo(imgEl) {
-    for (const rel of LOGO_CANDIDATES) {
-      const url = toAbsUrl(rel);
-      const ok = await canLoadImage(url);
-      if (ok) {
-        imgEl.src = url + (url.includes("?") ? "&" : "?") + cacheBust();
-        imgEl.style.visibility = "visible";
-        return;
-      }
+    for (const f of files) {
+      const path = normalizeSiteUrl(f.path);
+      const el = document.createElement("div");
+      el.className = "file-item";
+      el.innerHTML = `
+        <a href="${esc(path)}" target="_blank" rel="noopener">${esc(f.title)}</a>
+        <small>${esc(f.path)}</small>
+      `;
+      body.appendChild(el);
     }
   }
 
-  function canLoadImage(url) {
-    return new Promise((resolve) => {
-      const i = new Image();
-      i.onload = () => resolve(true);
-      i.onerror = () => resolve(false);
-      i.src = url + (url.includes("?") ? "&" : "?") + cacheBust();
-    });
-  }
+  async function loadRoute(force) {
+    const id = getRouteId();
+    const item = getNavItem(id) || NAV.find((x) => x.id) || NAV[0];
 
-  // =========================
-  // Buttons + SPA nav
-  // =========================
-  function wireButtons(els, mdPath) {
-    if (els.btnRefresh) els.btnRefresh.onclick = () => render();
-    if (els.btnCopy) els.btnCopy.onclick = () => copyToClipboard(location.href);
-    if (els.btnEdit) {
-      els.btnEdit.onclick = () => window.open(REPO_EDIT_BASE + mdPath, "_blank", "noopener");
-    }
+    setCrumbs(item);
+    setEditLink(item);
+    setUpdated();
+    renderFilesPanel(item);
 
-    document.addEventListener("click", (e) => {
-      const a = e.target && e.target.closest ? e.target.closest("a") : null;
-      if (!a) return;
-      const href = a.getAttribute("href");
-      if (!href) return;
+    const mdPath = normalizeSiteUrl("docs/" + item.md).replace(/^docs\//, "docs/").replace(/^\/+/, "");
+    const url = normalizeSiteUrl(item.md);
 
-      // внешние
-      if (/^https?:\/\//i.test(href) || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+    const content = qs("#content");
+    content.innerHTML = `<div class="note">Правило: задачи — только в трекере, отчёты — по дедлайнам.</div><div class="hr"></div><p style="color:rgba(233,236,243,.6)">Загрузка…</p>`;
 
-      // якоря
-      if (href.startsWith("#")) return;
-
-      // файлы — не перехватываем
-      if (
-        href.includes("assets/files/") ||
-        href.endsWith(".pdf") ||
-        href.endsWith(".docx") ||
-        href.endsWith(".xlsx") ||
-        href.endsWith(".zip")
-      ) {
-        return;
-      }
-
-      const abs = new URL(href, location.href);
-      if (abs.origin !== location.origin) return;
-      if (!abs.pathname.startsWith(BASE_PATH)) return;
-
-      e.preventDefault();
-      history.pushState({}, "", abs.pathname);
-      render();
-    });
-
-    window.onpopstate = () => render();
-  }
-
-  async function copyToClipboard(text) {
     try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
-    }
-  }
+      await ensureMarkedAndMermaid();
 
-  // =========================
-  // RENDER
-  // =========================
-  async function render() {
-    const els = getEls();
-
-    // лого
-    if (els.logoImg) pickLogo(els.logoImg).catch(() => {});
-
-    const route = getRoute();
-    const mdPath = routeToMdPath(route);
-    wireButtons(els, mdPath);
-
-    if (els.updated) els.updated.textContent = new Date().toLocaleString("ru-RU");
-
-    // загрузка markdown
-    const mdUrl = toAbsUrl(mdPath) + "?" + cacheBust();
-    let raw = "";
-    try {
-      const res = await fetch(mdUrl, { cache: "no-store" });
+      // Fetch markdown
+      const res = await fetch(url + (force ? ("?v=" + Date.now()) : ""), { cache: force ? "reload" : "default" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      raw = await res.text();
+      let text = await res.text();
+      text = applyContentPatches(mdPath, text);
+      renderMarkdown(text);
+
+      // files directive
+      const files = readFilesDirective(text);
+      renderFiles(files);
+
+      // Render mermaid
+      await renderMermaidIn(content);
     } catch (e) {
-      raw =
-        `# Не найден файл\n` +
-        `Путь: \`${mdPath}\`\n\n` +
-        `Создай файл в репозитории: **docs/${mdPath}**\n`;
+      content.innerHTML = `<h2>Ошибка загрузки</h2><pre class="error">${esc(e && e.message ? e.message : e)}</pre>`;
     }
+  }
 
-    raw = String(raw ?? "");
-    const { metaText, body } = splitFrontmatter(raw);
+  function renderMarkdown(mdText) {
+    const content = qs("#content");
 
-    const marked = await ensureMarked();
-    marked.setOptions({ gfm: true, breaks: true });
+    const html = marked.parse(mdText);
+    content.innerHTML = html;
 
-    const html = marked.parse(body);
-    els.content.innerHTML = html;
-
-    // Title
-    if (els.title) {
-      const h1 = els.content.querySelector("h1");
-      els.title.textContent = h1 ? h1.textContent.trim() : (route || "org-structure");
-    }
-
-    // assets links
-    fixAssetLinks(els.content);
-
-    // files panel
-    const files = parseFilesFromMeta(metaText);
-    renderFilesPanel(els.filesPanel, files);
-
-    // правило решений — актуализировать текст в контенте
-    patchDecisionRule(els.content);
-
-    // критичный фикс: оргструктура “[object Object]” → заменить на схему
-    const isOrg = (route || "org-structure") === "org-structure";
-    if (isOrg) {
-      const replaced = replaceObjectObjectWithOrgChart(els.content);
-      if (!replaced) {
-        // даже если не нашли — всё равно вставим схему после заголовка, чтобы точно была
-        insertOrgChartAfterHeader(els.content);
+    // minor: external links new tab
+    qsa("a", content).forEach((a) => {
+      const href = a.getAttribute("href") || "";
+      if (/^https?:\/\//i.test(href)) {
+        a.target = "_blank";
+        a.rel = "noopener";
       }
-
-      // линии рисуем после layout
-      requestAnimationFrame(() => {
-        const root = els.content;
-        drawOrgLines(root);
-      });
-
-      // перерисовка линий при ресайзе
-      window.addEventListener("resize", () => drawOrgLines(els.content), { passive: true });
-    }
-  }
-
-  // =========================
-  // Utils
-  // =========================
-  function escapeHtml(s) {
-    return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  // =========================
-  // INIT
-  // =========================
-  document.addEventListener("DOMContentLoaded", () => {
-    render().catch((e) => {
-      const els = getEls();
-      els.content.innerHTML =
-        `<h2>Ошибка загрузки</h2><pre style="white-space:pre-wrap;">${escapeHtml(e?.message || String(e))}</pre>`;
     });
-  });
+
+    // Fix relative image paths (content uses assets/img/..)
+    qsa("img", content).forEach((img) => {
+      const src = img.getAttribute("src") || "";
+      if (src && !/^https?:\/\//i.test(src) && !src.startsWith("data:")) {
+        img.src = normalizeSiteUrl(src);
+      }
+    });
+  }
+
+  // ----------------------------
+  // Boot
+  // ----------------------------
+  async function boot() {
+    buildLayout();
+
+    if (!location.hash || location.hash === "#") {
+      // default route
+      location.hash = "#/" + (NAV.find((x) => x.id)?.id || "org-structure");
+    }
+
+    highlightActiveNav();
+    await loadRoute(false);
+  }
+
+  // GitHub Pages: if served from /Four/... and using clean URLs,
+  // 404.html will redirect to #/...
+  if (!window.location.hash && window.location.pathname.endsWith(".html") === false) {
+    // no-op
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 })();
