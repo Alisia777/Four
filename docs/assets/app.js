@@ -1,315 +1,301 @@
-/* Fox Ops Portal — single-file SPA for GitHub Pages (project site friendly)
-   FIXES:
-   - No more [object Object] in code blocks (Marked token/signature changes)
-   - Mermaid rendered via DOM post-processing (version-safe)
-   - Fallback page if .md is missing (no 404 screen)
-   - Base rules decision thresholds patched on the fly (as requested)
-*/
+/* Hogita Ops Portal — app.js (fixed marked token/code + mermaid autodetect + iframe allowlist + clean routes) */
 
-const REPO_EDIT_BASE = "https://github.com/Alisia777/Four/edit/main/docs/";
+const els = {
+  nav: document.getElementById("nav"),
+  page: document.getElementById("page"),
+  filesList: document.getElementById("filesList"),
+  mdPath: document.getElementById("mdPath"),
+  breadcrumb: document.getElementById("pageBreadcrumb"),
+  search: document.getElementById("searchInput"),
+  updatedAt: document.getElementById("updatedAt"),
+  btnRefresh: document.getElementById("btnRefresh"),
+  btnCopyLink: document.getElementById("btnCopyLink"),
+  btnEdit: document.getElementById("btnEdit"),
+};
 
-// Навигация. md — путь относительно /docs/ (т.е. относительно корня GitHub Pages).
+// --- GitHub Pages base (/<repo>/...) ---
+function computeBasePrefix() {
+  const parts = location.pathname.split("/").filter(Boolean);
+  if (parts.length >= 1) return "/" + parts[0] + "/";
+  return "/";
+}
+const BASE_PREFIX = computeBasePrefix();
+const REPO_NAME = (location.pathname.split("/").filter(Boolean)[0] || "Four"); // repo может остаться Four
+// content root inside docs published on Pages
+const CONTENT_ROOT = "content/";
+const EDIT_BASE = `https://github.com/alisia777/${REPO_NAME}/edit/main/docs/`;
+
+// NAV map
 const NAV = [
   {
     section: "Оргструктура",
     items: [
-      { id: "org-structure", title: "Дерево / структура", md: "content/org-structure.md" },
-      { id: "base-rules", title: "Базовые правила", md: "content/base-rules.md" },
-      { id: "raci", title: "RACI", md: "content/raci.md" },
+      { id: "org-structure", title: "Дерево / структура", md: "org-structure.md" },
+      { id: "base-rules", title: "Базовые правила", md: "base-rules.md" },
     ],
+  },
+  {
+    section: "RACI",
+    items: [{ id: "raci", title: "RACI", md: "raci.md" }],
   },
   {
     section: "Должностные инструкции",
     items: [
-      { id: "operdir", title: "Опердир (COO)", md: "content/roles/operdir.md", files: [{ name: "operdir.docx", path: "assets/files/operdir.docx" }] },
-      { id: "rop", title: "РОП", md: "content/roles/rop.md", files: [{ name: "rop.docx", path: "assets/files/rop.docx" }] },
-      { id: "productolog", title: "Продуктолог", md: "content/roles/productolog.md", files: [{ name: "product.docx", path: "assets/files/product.docx" }] },
-      { id: "zakup", title: "Закупщик", md: "content/roles/zakup.md", files: [{ name: "zakup.docx", path: "assets/files/zakup.docx" }] },
-      { id: "moisklad", title: "ОМ МойСклад", md: "content/roles/moisklad.md", files: [{ name: "moisklad.docx", path: "assets/files/moisklad.docx" }] },
-      { id: "finance", title: "Финансист", md: "content/roles/finance.md", files: [{ name: "finance.docx", path: "assets/files/finance.docx" }] },
-      { id: "assistant", title: "Ассистент", md: "content/roles/assistant.md", files: [{ name: "assistant.docx", path: "assets/files/assistant.docx" }] },
+      { id: "operdir", title: "Опердир (COO)", md: "operdir.md", files: ["assets/files/operdir.docx"] },
+      { id: "rop", title: "РОП", md: "rop.md", files: ["assets/files/rop.docx"] },
+      { id: "product", title: "Продуктолог", md: "product.md", files: ["assets/files/product.docx"] },
+      { id: "procurement", title: "Закупщик", md: "procurement.md", files: ["assets/files/procurement.docx"] },
+      { id: "ms", title: "ОМ МойСклад", md: "ms.md", files: ["assets/files/ms.docx"] },
+      { id: "finance", title: "Финансист", md: "finance.md", files: ["assets/files/finance.docx"] },
+      { id: "assistant", title: "Ассистент", md: "assistant.md", files: ["assets/files/assistant.docx"] },
     ],
   },
   {
     section: "Отчёты",
     items: [
-      { id: "rep-daily-wb", title: "Daily WB", md: "content/reports/daily-wb.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
-      { id: "rep-weekly-wb", title: "Weekly WB", md: "content/reports/weekly-wb.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
-      { id: "rep-weekly-zakup", title: "Weekly закуп", md: "content/reports/weekly-zakup.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
-      { id: "rep-weekly-ms", title: "Weekly МойСклад", md: "content/reports/weekly-ms.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
-      { id: "rep-weekly-fin", title: "Weekly финансы", md: "content/reports/weekly-fin.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
-      { id: "rep-monthly-fin", title: "Monthly финансы", md: "content/reports/monthly-fin.md", files: [{ name: "report_templates.docx", path: "assets/files/report_templates.docx" }] },
+      // ✅ sales.md — iframe внутрь портала (разрешаем iframe только тут)
+      { id: "sales", title: "Отдел продаж", md: "sales.md", allowIframe: true },
+
+      { id: "daily-wb", title: "Daily WB", md: "daily-wb.md" },
+      { id: "weekly-wb", title: "Weekly WB", md: "weekly-wb.md" },
+      { id: "weekly-proc", title: "Weekly закуп", md: "weekly-proc.md" },
+      { id: "weekly-ms", title: "Weekly МойСклад", md: "weekly-ms.md" },
+      { id: "weekly-fin", title: "Weekly финансы", md: "weekly-fin.md" },
+      { id: "monthly-fin", title: "Monthly финансы", md: "monthly-fin.md" },
     ],
   },
 ];
 
-const els = {
-  nav: document.getElementById("nav"),
-  page: document.getElementById("page"),
-  breadcrumb: document.getElementById("pageBreadcrumb"),
-  updatedAt: document.getElementById("updatedAt"),
-  mdPath: document.getElementById("mdPath"),
-  filesList: document.getElementById("filesList"),
-  btnRefresh: document.getElementById("btnRefresh"),
-  btnCopyLink: document.getElementById("btnCopyLink"),
-  btnEdit: document.getElementById("btnEdit"),
-  searchInput: document.getElementById("searchInput"),
-};
-
-const ALL_PAGES = NAV.flatMap(s => s.items.map(it => ({ ...it, section: s.section })));
+const ALL_PAGES = NAV.flatMap((s) => s.items);
 
 // ---------- utils ----------
-function nowStamp() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-function getBasePrefix() {
-  // For GitHub Pages project sites: /<repo>/
-  const parts = window.location.pathname.split("/").filter(Boolean);
-  if (parts.length === 0) return "/";
-  return `/${parts[0]}/`;
-}
-
-const BASE_PREFIX = getBasePrefix();
-
-function isExternalUrl(u) {
-  return /^https?:\/\//i.test(u) || u.startsWith("mailto:") || u.startsWith("tel:") || u.startsWith("#");
-}
-
-function normalizeSiteUrl(u) {
-  if (!u) return u;
-  if (isExternalUrl(u)) return u;
-  if (u.startsWith("//")) return u;
-  if (u.startsWith("/")) {
-    if (u.startsWith(BASE_PREFIX)) return u;
-    return BASE_PREFIX + u.replace(/^\//, "");
-  }
-  return u;
-}
-
-function cacheBust(u) {
-  if (!u || isExternalUrl(u)) return u;
-  const sep = u.includes("?") ? "&" : "?";
-  return `${u}${sep}v=${Date.now()}`;
-}
-
 function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return String(s).replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
 }
 
-function setHash(id) {
-  window.location.hash = `#/${encodeURIComponent(id)}`;
+function debounce(fn, ms) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
 }
 
-function getRouteId() {
-  const h = window.location.hash || "";
-  const m = h.match(/^#\/([^?]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+// normalize relative links for Pages
+function normalizeSiteUrl(url) {
+  if (!url) return url;
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith("mailto:") || url.startsWith("tel:")) return url;
+
+  // root-relative -> repo-relative
+  if (url.startsWith("/")) return BASE_PREFIX.replace(/\/+$/, "/") + url.replace(/^\/+/, "");
+  return url;
 }
 
-async function fetchText(relPath, { bust = false } = {}) {
-  const url = normalizeSiteUrl("docs/" + relPath.replace(/^\/+/, ""));
-  const finalUrl = bust ? cacheBust(url) : url;
-  const res = await fetch(finalUrl, { cache: "no-store" });
-  if (!res.ok) {
-    const err = new Error(`Не могу загрузить ${relPath} (${res.status})`);
-    err.status = res.status;
-    throw err;
+// ---------- routing ----------
+function getRouteFromPathname() {
+  const rel = location.pathname.replace(BASE_PREFIX, "");
+  const parts = rel.split("/").filter(Boolean);
+  return parts[0] || ALL_PAGES[0].id;
+}
+
+function canonicalizeUrl() {
+  const rel = location.pathname.replace(BASE_PREFIX, "");
+  const parts = rel.split("/").filter(Boolean);
+  if (parts.length > 1) {
+    const canonical = BASE_PREFIX + parts[0];
+    history.replaceState(null, "", canonical);
   }
-  return await res.text();
 }
 
-// ---------- patches (your requested “пороги решений”) ----------
-function applyPatches(mdPath, mdText) {
-  if (!mdText) return mdText;
+function setRoute(route) {
+  const id = String(route || "").trim() || ALL_PAGES[0].id;
+  const next = BASE_PREFIX + id;
+  history.pushState(null, "", next);
+}
 
-  if (mdPath === "content/base-rules.md") {
-    const needle = /- Любые изменения цен\s*\/\s*рекламы\s*\/\s*закупок\s*—\s*через согласование с Опердиром \(COO\)\.\s*/i;
+function findPageById(id) {
+  return ALL_PAGES.find((p) => p.id === id) || null;
+}
 
-    const replacement =
-      [
-        "- **Цена:**",
-        "  - Если меняем цену **ниже плановой** и это уводит **маржу ниже плановой** — **согласовываем с Опердиром (COO) ДО изменения**.",
-        "  - Если цена **выше плановой** — **не согласовываем** (на усмотрение менеджера), при условии что не ломаем оффер/позиционирование и не нарушаем правила площадки.",
-        "- **Реклама:**",
-        "  - Любое изменение, которое ведёт к **ухудшению маржи/DRR ниже плановых порогов** — согласуем с Опердиром (COO).",
-        "  - Оптимизация в рамках плана (снижение ставок/перераспределение бюджета без ухудшения маржи) — на усмотрение менеджера.",
-        "- **Закуп / поставки:**",
-        "  - Любое увеличение объёма/оплаты **сверх утверждённого плана** — согласуем с Опердиром (COO).",
-        "  - Перераспределение внутри уже утверждённого плана — на усмотрение ответственного (с фиксацией в отчёте).",
-      ].join("\n");
+// ---------- markdown + mermaid detection ----------
+function setupMarked() {
+  if (!window.marked) return;
 
-    if (needle.test(mdText)) {
-      mdText = mdText.replace(needle, replacement + "\n");
-    } else {
-      // если строку не нашли — просто допишем блок в конец секции 2.4 (мягко, без поломок)
-      mdText = mdText.replace(
-        /(##\s*2\.4\.\s*Как мы принимаем решения[\s\S]*?)(\n##\s|$)/,
-        (m, p1, p2) => `${p1}\n\n${replacement}\n${p2 || ""}`
-      );
+  marked.setOptions({ breaks: true, gfm: true });
+
+  const renderer = new marked.Renderer();
+  const origCode = renderer.code ? renderer.code.bind(renderer) : null;
+
+  const toText = (codeArg) => {
+    // marked может прислать строку ИЛИ token-object
+    if (typeof codeArg === "string") return codeArg;
+    if (codeArg && typeof codeArg === "object") {
+      if (typeof codeArg.text === "string") return codeArg.text;
+      if (typeof codeArg.raw === "string") return codeArg.raw;
     }
-  }
+    return String(codeArg ?? "");
+  };
 
-  return mdText;
-}
+  const looksLikeMermaid = (text = "") => {
+    const c = String(text || "").trim();
+    return (
+      c.startsWith("flowchart") ||
+      c.startsWith("graph ") ||
+      c.startsWith("sequenceDiagram") ||
+      c.startsWith("erDiagram") ||
+      c.startsWith("stateDiagram") ||
+      c.startsWith("classDiagram") ||
+      c.startsWith("gantt") ||
+      c.startsWith("journey") ||
+      c.startsWith("mindmap")
+    );
+  };
 
-// ---------- markdown rendering ----------
-function safeMarkedParse(md) {
-  const m = window.marked;
-  if (!m) return `<pre><code>${escapeHtml(md)}</code></pre>`;
+  renderer.code = (codeArg, infostring, escaped) => {
+    const codeText = toText(codeArg);
 
-  // Set options once (safe for different versions)
-  try {
-    if (typeof m.setOptions === "function") {
-      m.setOptions({ mangle: false, headerIds: false, breaks: true });
+    // язык берём и из token, и из infostring
+    const tokenLang =
+      (codeArg && typeof codeArg === "object" && typeof codeArg.lang === "string") ? codeArg.lang : "";
+
+    const lang = String(tokenLang || infostring || "").trim().toLowerCase();
+
+    // поддерживаем ```mermaid + авто-детект
+    if (lang === "mermaid" || lang === "flowchart" || looksLikeMermaid(codeText)) {
+      return `<pre class="mermaid">${escapeHtml(codeText)}</pre>`;
     }
-  } catch (_) {}
 
-  // Try parse APIs
-  try {
-    if (typeof m.parse === "function") return m.parse(md);
-  } catch (e1) {
-    // fallback to old callable form
-    try {
-      if (typeof m === "function") return m(md);
-    } catch (_) {}
-    throw e1;
-  }
+    // отдать штатному renderer
+    if (origCode) return origCode(codeArg, infostring, escaped);
 
-  // ultimate fallback
-  return `<pre><code>${escapeHtml(md)}</code></pre>`;
+    // fallback
+    return `<pre><code>${escapeHtml(codeText)}</code></pre>`;
+  };
+
+  marked.use({ renderer });
 }
 
-function sanitizeHtml(html) {
-  if (window.DOMPurify && typeof window.DOMPurify.sanitize === "function") {
-    // allow basic tags (default), keep it strict
-    return window.DOMPurify.sanitize(html);
+// DOMPurify: iframe только на разрешённых страницах
+function sanitizeHtml(rawHtml, page) {
+  if (!window.DOMPurify) return rawHtml;
+
+  if (page && page.allowIframe) {
+    return DOMPurify.sanitize(rawHtml, {
+      ADD_TAGS: ["iframe"],
+      ADD_ATTR: [
+        "src",
+        "style",
+        "loading",
+        "referrerpolicy",
+        "allow",
+        "allowfullscreen",
+        "frameborder",
+        "scrolling",
+        "title",
+      ],
+    });
   }
-  return html;
+
+  return DOMPurify.sanitize(rawHtml);
 }
 
-function postprocessLinks(container) {
-  // fix <a href> and <img src> for project pages base prefix
-  container.querySelectorAll("a[href]").forEach(a => {
+function renderMarkdown(mdText, page) {
+  const rawHtml = window.marked ? marked.parse(mdText || "") : `<pre>${escapeHtml(mdText || "")}</pre>`;
+  const safeHtml = sanitizeHtml(rawHtml, page);
+  els.page.innerHTML = safeHtml;
+
+  // normalize <a> and <img>
+  els.page.querySelectorAll("a").forEach((a) => {
     const href = a.getAttribute("href");
-    const fixed = normalizeSiteUrl(href);
-    if (fixed !== href) a.setAttribute("href", fixed);
-
-    if (/^https?:\/\//i.test(fixed)) {
+    if (!href) return;
+    a.setAttribute("href", normalizeSiteUrl(href));
+    if (/^(https?:)?\/\//i.test(href)) {
       a.setAttribute("target", "_blank");
       a.setAttribute("rel", "noopener noreferrer");
     }
   });
 
-  container.querySelectorAll("img[src]").forEach(img => {
+  els.page.querySelectorAll("img").forEach((img) => {
     const src = img.getAttribute("src");
-    const fixed = normalizeSiteUrl(src);
-    if (fixed !== src) img.setAttribute("src", fixed);
+    if (!src) return;
+    img.setAttribute("src", normalizeSiteUrl(src));
+    img.setAttribute("loading", "lazy");
+  });
+
+  // iframe — оставляем как есть (внешние не трогаем), просто lazy
+  els.page.querySelectorAll("iframe").forEach((ifr) => {
+    ifr.setAttribute("loading", "lazy");
   });
 }
 
-function convertMermaidBlocks(container) {
-  // Marked usually outputs: <pre><code class="language-mermaid">...</code></pre>
-  const codeNodes = Array.from(container.querySelectorAll("pre > code"));
-  codeNodes.forEach(code => {
-    const cls = (code.className || "").toLowerCase();
-    const isMermaid =
-      cls.includes("language-mermaid") ||
-      cls.includes("lang-mermaid") ||
-      cls.includes("mermaid");
+// ---------- Mermaid ----------
+let mermaidInited = false;
 
-    if (!isMermaid) return;
-
-    const text = (code.textContent || "").trim();
-    if (!text) return;
-
-    const pre = code.parentElement;
-    if (!pre) return;
-
-    // Mermaid prefers <div class="mermaid">...</div>
-    const div = document.createElement("div");
-    div.className = "mermaid";
-    div.textContent = text;
-
-    pre.replaceWith(div);
-  });
-}
-
-async function renderMermaid(container) {
+async function initMermaid() {
+  if (mermaidInited) return;
   if (!window.mermaid) return;
-
-  // Init once
-  if (!window.__mermaidInited) {
-    try {
-      window.mermaid.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        securityLevel: "strict",
-      });
-      window.__mermaidInited = true;
-    } catch (_) {}
+  try {
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "dark",
+    });
+    mermaidInited = true;
+  } catch (e) {
+    console.warn("Mermaid init error:", e);
   }
-
-  const nodes = Array.from(container.querySelectorAll(".mermaid"));
-  if (!nodes.length) return;
-
-  try {
-    // Mermaid v10+
-    if (typeof window.mermaid.run === "function") {
-      await window.mermaid.run({ nodes });
-      return;
-    }
-  } catch (_) {}
-
-  // Mermaid v8/v9 fallback
-  try {
-    if (typeof window.mermaid.init === "function") {
-      window.mermaid.init(undefined, nodes);
-    }
-  } catch (_) {}
 }
 
-async function renderMarkdown(mdText) {
-  const rawHtml = safeMarkedParse(mdText || "");
-  const cleanHtml = sanitizeHtml(rawHtml);
+async function renderMermaid() {
+  if (!window.mermaid || !mermaid.render) return;
 
-  els.page.innerHTML = cleanHtml;
+  const blocks = Array.from(els.page.querySelectorAll("pre.mermaid"));
+  if (!blocks.length) return;
 
-  postprocessLinks(els.page);
-  convertMermaidBlocks(els.page);
-  await renderMermaid(els.page);
+  for (const block of blocks) {
+    const code = block.textContent || "";
+    const holder = document.createElement("div");
+    holder.className = "mermaid-render";
+    block.parentNode.replaceChild(holder, block);
+
+    try {
+      const id = "mmd-" + Math.random().toString(16).slice(2);
+      const out = await mermaid.render(id, code);
+      const svg = typeof out === "string" ? out : (out && out.svg ? out.svg : "");
+      if (!svg) throw new Error("Mermaid вернул пустой SVG");
+      holder.innerHTML = svg;
+    } catch (e) {
+      holder.innerHTML =
+        `<div class="note warn"><b>Не удалось отрисовать схему</b><br/>${escapeHtml(e?.message || String(e))}</div>` +
+        `<pre><code>${escapeHtml(code)}</code></pre>`;
+    }
+  }
 }
 
-// ---------- UI ----------
+// ---------- files panel ----------
 function renderFiles(page) {
-  const files = (page.files || []).map(f => ({
-    name: f.name,
-    url: normalizeSiteUrl("docs/" + f.path.replace(/^\/+/, "")),
-  }));
-
+  const files = (page && page.files) ? page.files : [];
   els.filesList.innerHTML = "";
+
   if (!files.length) {
-    els.filesList.innerHTML = `<div class="files__empty">Нет прикрепленных файлов.</div>`;
+    els.filesList.innerHTML = `<div class="files-empty">Нет прикреплённых файлов.</div>`;
     return;
   }
 
   const ul = document.createElement("ul");
-  ul.className = "files__list";
+  ul.className = "files-ul";
 
-  files.forEach(f => {
+  files.forEach((f) => {
     const li = document.createElement("li");
+    li.className = "files-li";
+
     const a = document.createElement("a");
-    a.href = f.url;
-    a.textContent = f.name;
+    a.className = "files-a";
+    a.href = normalizeSiteUrl(f);
+    a.textContent = f.split("/").pop();
     a.target = "_blank";
     a.rel = "noopener noreferrer";
+
     li.appendChild(a);
     ul.appendChild(li);
   });
@@ -317,151 +303,128 @@ function renderFiles(page) {
   els.filesList.appendChild(ul);
 }
 
-function renderBreadcrumb(page) {
-  els.breadcrumb.textContent = `${page.section} → ${page.title}`;
-}
-
-function setEditLink(page) {
-  const url = REPO_EDIT_BASE + page.md;
-  els.btnEdit.onclick = () => window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function setCopyLink(page) {
-  els.btnCopyLink.onclick = async () => {
-    const link = `${window.location.origin}${window.location.pathname}#/${encodeURIComponent(page.id)}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      els.btnCopyLink.textContent = "Ссылка скопирована";
-      setTimeout(() => (els.btnCopyLink.textContent = "Скопировать ссылку"), 1200);
-    } catch (_) {
-      // fallback prompt
-      window.prompt("Скопируй ссылку:", link);
-    }
-  };
-}
-
-function setRefresh(page) {
-  els.btnRefresh.onclick = () => loadPageById(page.id, { bust: true });
-}
-
-function setActiveNav(id) {
-  els.nav.querySelectorAll(".nav-link").forEach(a => {
-    a.classList.toggle("active", a.dataset.id === id);
-  });
-}
-
-function renderNav(filterText = "") {
-  const q = (filterText || "").trim().toLowerCase();
+// ---------- nav ----------
+function renderNav(filter = "") {
+  const q = (filter || "").trim().toLowerCase();
   els.nav.innerHTML = "";
 
-  NAV.forEach(sec => {
-    const section = document.createElement("div");
-    section.className = "nav-section";
+  NAV.forEach((sec) => {
+    const secEl = document.createElement("div");
+    secEl.className = "nav-section";
 
-    const title = document.createElement("div");
-    title.className = "nav-title";
-    title.textContent = sec.section;
-    section.appendChild(title);
+    const h = document.createElement("div");
+    h.className = "nav-title";
+    h.textContent = sec.section;
+    secEl.appendChild(h);
 
-    sec.items.forEach(item => {
-      const hay = `${item.title} ${sec.section}`.toLowerCase();
-      if (q && !hay.includes(q)) return;
+    const list = document.createElement("div");
+    list.className = "nav-items";
+
+    sec.items.forEach((it) => {
+      const hit = !q || it.title.toLowerCase().includes(q) || it.id.toLowerCase().includes(q);
+      if (!hit) return;
 
       const a = document.createElement("a");
-      a.className = "nav-link";
-      a.href = `#/${encodeURIComponent(item.id)}`;
-      a.dataset.id = item.id;
-      a.textContent = item.title;
+      a.className = "nav-item";
+      a.href = BASE_PREFIX + it.id;
 
-      a.addEventListener("click", e => {
+      a.textContent = it.title;
+      a.dataset.label = it.title;
+      a.setAttribute("data-label", it.title);
+      a.setAttribute("data-title", it.title);
+      a.setAttribute("aria-label", it.title);
+
+      a.addEventListener("click", (e) => {
         e.preventDefault();
-        setHash(item.id);
-        loadPageById(item.id);
+        setRoute(it.id);
+        loadPage(it.id);
+        highlightActive(it.id);
       });
 
-      section.appendChild(a);
+      list.appendChild(a);
     });
 
-    els.nav.appendChild(section);
+    secEl.appendChild(list);
+    els.nav.appendChild(secEl);
+  });
+
+  highlightActive(getRouteFromPathname());
+}
+
+function highlightActive(pageId) {
+  els.nav.querySelectorAll(".nav-item").forEach((b) => {
+    b.classList.toggle("active", b.getAttribute("href") === (BASE_PREFIX + pageId));
   });
 }
 
-function fallbackMdForMissing(page) {
-  const files = (page.files || []);
-  const links = files.length
-    ? files.map(f => `- [${f.name}](${normalizeSiteUrl("docs/" + f.path.replace(/^\/+/, ""))})`).join("\n")
-    : "_Файлов нет._";
+// ---------- page loader ----------
+async function loadPage(pageId) {
+  const page = findPageById(pageId) || ALL_PAGES[0];
 
-  return [
-    `# ${page.title}`,
-    "",
-    "> Markdown-страница не найдена (это нормально, если вы храните регламент только в файле).",
-    "",
-    "## Файлы",
-    links,
-  ].join("\n");
-}
+  els.breadcrumb.textContent = page.title || "";
+  els.mdPath.textContent = `Markdown: /${CONTENT_ROOT}${page.md}`;
 
-// ---------- main loader ----------
-async function loadPageById(id, { bust = false } = {}) {
-  const page = ALL_PAGES.find(p => p.id === id) || ALL_PAGES[0];
-  if (!page) return;
+  const editUrl = EDIT_BASE + CONTENT_ROOT + page.md;
+  els.btnEdit.onclick = () => window.open(editUrl, "_blank", "noopener,noreferrer");
 
-  setActiveNav(page.id);
-  renderBreadcrumb(page);
   renderFiles(page);
 
-  els.updatedAt.textContent = nowStamp();
-  els.mdPath.textContent = page.md;
-
-  setEditLink(page);
-  setCopyLink(page);
-  setRefresh(page);
-
   try {
-    let md = "";
-    try {
-      md = await fetchText(page.md, { bust });
-    } catch (e) {
-      // If 404 on MD — show fallback page (NO hard error screen)
-      if (e && (e.status === 404 || /404/.test(String(e.message)))) {
-        md = fallbackMdForMissing(page);
-      } else {
-        throw e;
-      }
-    }
+    const mdUrl = normalizeSiteUrl(CONTENT_ROOT + page.md);
+    const res = await fetch(mdUrl + "?v=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error(`Не могу загрузить ${page.md} (${res.status})`);
+    const text = await res.text();
 
-    md = applyPatches(page.md, md);
-    await renderMarkdown(md);
-  } catch (err) {
-    els.page.innerHTML =
-      `<div class="md-error">
-        <h3>Ошибка загрузки</h3>
-        <div>${escapeHtml(err?.message || String(err))}</div>
-      </div>`;
+    renderMarkdown(text, page);
+    await initMermaid();
+    await renderMermaid();
+  } catch (e) {
+    els.page.innerHTML = `<div class="note warn"><b>Ошибка загрузки</b><br/>${escapeHtml(e?.message || String(e))}</div>`;
   }
+}
+
+// ---------- top actions ----------
+function updateUpdatedAt() {
+  if (!els.updatedAt) return;
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  els.updatedAt.textContent = `Обновление: ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function copyLink() {
+  const route = getRouteFromPathname();
+  const url = location.origin + BASE_PREFIX + route;
+  navigator.clipboard.writeText(url).then(() => {
+    els.btnCopyLink.textContent = "Скопировано ✅";
+    setTimeout(() => (els.btnCopyLink.textContent = "Скопировать ссылку"), 1200);
+  });
 }
 
 // ---------- init ----------
-function init() {
-  renderNav("");
+setupMarked();
+canonicalizeUrl();
+renderNav();
 
-  const initial = getRouteId() || ALL_PAGES[0]?.id;
-  loadPageById(initial);
-
-  window.addEventListener("hashchange", () => {
-    const id = getRouteId() || ALL_PAGES[0]?.id;
-    loadPageById(id);
-  });
-
-  if (els.searchInput) {
-    els.searchInput.addEventListener("input", e => {
-      renderNav(e.target.value);
-      // keep active state after rerender
-      const id = getRouteId() || ALL_PAGES[0]?.id;
-      setActiveNav(id);
-    });
-  }
+if (els.search) {
+  els.search.addEventListener("input", debounce((e) => {
+    renderNav(e.target.value || "");
+  }, 120));
 }
 
-document.addEventListener("DOMContentLoaded", init);
+if (els.btnRefresh) els.btnRefresh.addEventListener("click", () => loadPage(getRouteFromPathname()));
+if (els.btnCopyLink) els.btnCopyLink.addEventListener("click", copyLink);
+
+window.addEventListener("popstate", () => {
+  canonicalizeUrl();
+  const r = getRouteFromPathname();
+  highlightActive(r);
+  loadPage(r);
+});
+
+updateUpdatedAt();
+setInterval(updateUpdatedAt, 60_000);
+
+// старт
+const startRoute = getRouteFromPathname();
+highlightActive(startRoute);
+loadPage(startRoute);
